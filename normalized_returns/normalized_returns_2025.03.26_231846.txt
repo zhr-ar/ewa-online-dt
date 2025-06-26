@@ -1,0 +1,149 @@
+ITERATION-WISE RETURNS FOR ALL ENVIRONMENTS
+==================================================
+
+
+Iteration-wise returns for halfcheetah-medium-expert-v2
+
+Iteration-wise Returns
+------------------------------
+
+Step,EWA Raw,EWA Normalized,ODT Raw,ODT Normalized
+0 || 3554.45 | 33.42 || 3589.18 | 33.73
+2 || 2443.09 | 23.81 || 2099.38 | 20.84
+4 || 1710.52 | 17.48 || 3089.50 | 29.40
+6 || 1667.35 | 17.10 || 2971.95 | 28.39
+8 || 2338.57 | 22.91 || 2972.93 | 28.40
+10 || 2642.75 | 25.54 || 3124.97 | 29.71
+12 || 2772.61 | 26.66 || 4208.00 | 39.08
+14 || 2787.04 | 26.79 || 4382.21 | 40.58
+16 || 2414.09 | 23.56 || 3943.51 | 36.79
+18 || 3624.14 | 34.03 || 4620.85 | 42.65
+20 || 4238.14 | 39.34 || 4604.16 | 42.50
+22 || 4796.44 | 44.17 || 4891.03 | 44.98
+24 || 5035.98 | 46.24 || 6070.60 | 55.19
+26 || 5798.30 | 52.83 || 6779.79 | 61.32
+28 || 6181.45 | 56.15 || 6843.30 | 61.87
+30 || 7027.98 | 63.47 || 6522.76 | 59.10
+
+==================================================
+
+Iteration-wise returns for walker2d-medium-replay-v2
+
+Iteration-wise Returns
+------------------------------
+
+Step,EWA Raw,EWA Normalized,ODT Raw,ODT Normalized
+0 || 519.76 | 13.63 || -5.31 | 1.07
+2 || 372.98 | 10.12 || 86.81 | 3.28
+4 || 277.97 | 7.85 || 103.66 | 3.68
+6 || 323.14 | 8.93 || 296.49 | 8.29
+8 || 712.66 | 18.24 || 370.31 | 10.05
+10 || 670.93 | 17.24 || 12.82 | 1.51
+12 || 688.51 | 17.66 || 1116.82 | 27.90
+14 || 355.78 | 9.71 || 1202.36 | 29.95
+16 || 1258.06 | 31.28 || 867.55 | 21.94
+18 || 2208.89 | 54.02 || 1386.54 | 34.35
+20 || 1486.83 | 36.75 || 877.03 | 22.17
+22 || 1442.52 | 35.69 || 1783.44 | 43.84
+24 || 1573.77 | 38.83 || 1874.53 | 46.02
+26 || 1660.15 | 40.90 || 1493.86 | 36.92
+28 || 2370.26 | 57.88 || 1082.67 | 27.09
+30 || 1694.26 | 41.71 || 1563.83 | 38.59
+
+==================================================
+
+Iteration-wise returns for hopper-medium-v2
+
+Iteration-wise Returns
+------------------------------
+
+Step,EWA Raw,EWA Normalized,ODT Raw,ODT Normalized
+0 || 1777.24 | 50.28 || 1730.24 | 48.66
+2 || 2210.57 | 65.19 || 2197.58 | 64.74
+4 || 2216.91 | 65.41 || 1811.50 | 51.46
+6 || 2508.01 | 75.42 || 2288.43 | 67.87
+8 || 2147.00 | 63.00 || 1826.47 | 51.97
+10 || 2345.85 | 69.84 || 1812.35 | 51.49
+12 || 2020.06 | 58.63 || 1651.95 | 45.97
+14 || 2178.16 | 64.07 || 1768.40 | 49.98
+16 || 1923.86 | 55.32 || 1637.75 | 45.48
+18 || 1783.20 | 50.48 || 1611.76 | 44.59
+20 || 1699.10 | 47.59 || 1606.22 | 44.40
+22 || 1763.60 | 49.81 || 1650.70 | 45.93
+24 || 1670.89 | 46.62 || 1632.27 | 45.29
+26 || 1619.33 | 44.85 || 1638.88 | 45.52
+28 || 1564.28 | 42.95 || 1617.59 | 44.79
+30 || 1438.05 | 38.61 || 1635.52 | 45.40
+
+==================================================
+
+
+FINAL NORMALIZED RETURNS SUMMARY
+==================================================
+
+Environment: halfcheetah-medium-expert-v2
+------------------------------
+Dataset min return: -310.23
+Dataset max return: 11252.04
+
+Seed average (EWA): 35.52
+Seed average (EWA): 33.44
+Seed average (EWA): 35.52
+Seed average (EWA): 32.60
+Seed average (EWA): 36.16
+Seed average (EWA): 34.31
+Seed average (ODT): 43.60
+Seed average (ODT): 40.02
+Seed average (ODT): 40.71
+Seed average (ODT): 40.43
+Seed average (ODT): 39.51
+Seed average (ODT): 41.18
+
+EWA Summary (n=6 seeds): 34.59 ± 1.26
+ODT Summary (n=6 seeds): 40.91 ± 1.31
+
+==================================================
+Environment: walker2d-medium-replay-v2
+------------------------------
+Dataset min return: -50.20
+Dataset max return: 4132.00
+
+Seed average (EWA): 32.90
+Seed average (EWA): 29.20
+Seed average (EWA): 16.29
+Seed average (EWA): 29.95
+Seed average (EWA): 1.48
+Seed average (EWA): 55.33
+Seed average (ODT): 1.09
+Seed average (ODT): 10.64
+Seed average (ODT): 28.35
+Seed average (ODT): 20.57
+Seed average (ODT): 42.97
+Seed average (ODT): 30.13
+
+EWA Summary (n=6 seeds): 27.53 ± 16.41
+ODT Summary (n=6 seeds): 22.29 ± 13.63
+
+==================================================
+Environment: hopper-medium-v2
+------------------------------
+Dataset min return: 315.87
+Dataset max return: 3222.36
+
+Seed average (EWA): 57.25
+Seed average (EWA): 56.70
+Seed average (EWA): 62.80
+Seed average (EWA): 42.87
+Seed average (EWA): 55.08
+Seed average (EWA): 58.33
+Seed average (ODT): 48.18
+Seed average (ODT): 51.54
+Seed average (ODT): 47.95
+Seed average (ODT): 51.48
+Seed average (ODT): 47.71
+Seed average (ODT): 50.70
+
+EWA Summary (n=6 seeds): 55.51 ± 6.13
+ODT Summary (n=6 seeds): 49.60 ± 1.67
+
+==================================================

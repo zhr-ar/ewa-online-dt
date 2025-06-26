@@ -1,0 +1,18 @@
+{
+    "exp_name": "ewa",
+    "name_run": "normalized_return_vs_steps_30iter",
+    "max_online_iters": 30,
+    "num_updates_per_online_iter": 100,
+    "eval_interval": 2,
+    "envs": [
+        "halfcheetah-medium-expert-v2",
+        "walker2d-medium-replay-v2",
+        "hopper-medium-v2"
+    ],
+    "seed": 2,
+    "beta": 1.0,
+    "phi": 0.9,
+    "initial_delta": 0.7,
+    "final_delta": 0.1,
+    "trajectory_length": 1000
+}   
