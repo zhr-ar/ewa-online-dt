@@ -12,9 +12,9 @@
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
-# limitations under the License.
+# limitations under the License. 
 """PyTorch OpenAI GPT-2 model."""
-
+ 
 import os
 from dataclasses import dataclass
 from typing import List, Optional, Tuple
@@ -45,7 +45,7 @@ from transformers.utils import logging
 from transformers.utils.model_parallel_utils import assert_device_map, get_device_map
 from transformers.models.gpt2.configuration_gpt2 import GPT2Config
 
-from decision_transformer.models.ewa_kernel import EWAKernel
+from decision_transformer.models.ewa_vq import EWAVQ
 import numpy as np
 from logger import Logger
 from pathlib import Path
@@ -237,28 +237,76 @@ class Attention(nn.Module):
             w = w / (float(v.size(-1)) ** 0.5)
         nd, ns = w.size(-2), w.size(-1)
 
+        # Store original attention weights for analysis
+        w_original = w.clone()
+        debug_data = {
+            "attention_scores_before": w_original.cpu().detach().numpy(),
+        }
         # Get dynamic batch size and sequence length
         batch_size = w.shape[0]
         num_heads = w.shape[1]
         tuple_seq_length = w.shape[2]
 
-        print(f"\nAttention _attn:")
-        print(f"w shape: {w.shape}")
-        print(f"w min/max/mean before EWA before mask: {w.min().item():.4f}/{w.max().item():.4f}/{w.mean().item():.4f}")
+        # print(f"\n******************** Attention _attn: ********************")
+        # print(f"w shape: {w.shape}") # (batch_size, num_heads, seq_len, seq_len)
+        # print(f"w min/max/mean before EWA: {w.min().item():.4f}/{w.max().item():.4f}/{w.mean().item():.4f}")
+        # print(f"********** Initialize EWA **********")
 
         # Initialize EWA with dynamic values from attention weights shape
         if not self.is_cross_attention and not self.ewa_initialized:
-            self.ewa = EWAKernel(
-                num_heads=num_heads,  # Number of attention heads
-                tuple_seq_length=tuple_seq_length,  # tuple sequence length from attention weights
-                batch_size=batch_size,
+            print(f"\n*** Initializing EWAVQ with num_heads={num_heads}, tuple_seq_length={tuple_seq_length} ***")
+            
+            # Calculate adaptive grid_bins based on action dimension
+            action_dim = self.actions.shape[-1] if hasattr(self, 'actions') and self.actions is not None else 6  # Default for halfcheetah
+            grid_bins_factor = self.variant.get("grid_bins_factor", 1.0)
+            adaptive_grid_bins = max(2, min(8, int(grid_bins_factor * action_dim)))
+            
+            self.ewa = EWAVQ(
+                num_heads=num_heads,
+                tuple_seq_length=tuple_seq_length,
                 phi=self.variant["phi"],
-                initial_delta=self.variant["initial_delta"],
-                delta_decay_rate=0.001,  # Rate at which delta decays
-                sigma_window_size=tuple_seq_length//3,   # Window size for adaptive sigma which is size of action sequence
-                monitor_interval=100     # How often to log stats
+                delta=self.variant["delta"],
+                num_codes=self.variant.get("num_codes", 16),  # Number of VQ codes
+                grid_bins=adaptive_grid_bins  # Adaptive grid bins
             )
+            # Pass variant to EWAVQ for environment name access
+            self.ewa.variant = self.variant
             self.ewa_initialized = True
+
+        
+        # EWA: Apply EWA to attention weights of action tokens
+        if not hasattr(self, "rewards") or self.rewards is None:
+            raise ValueError("Error: rewards are not set in `Attention` class before calling `_attn()`!")
+        if not hasattr(self, "actions") or self.actions is None:
+            raise ValueError("Error: actions are not set in `Attention` class before calling `_attn()`!")
+
+        # Ensure rewards and actions are on the same device as w
+        self.rewards = self.rewards.to(w.device)
+        self.actions = self.actions.to(w.device)
+        
+        # Process batch with EWA and get attraction matrix
+        D_kernels, D_trajectories = self.ewa.process_batch(self.actions, self.rewards)
+        attr = self.ewa.get_attraction(D_trajectories, self.rewards).to(w.device)  # (B, H, L, 1)
+        _, _, _, action_indices = self.ewa._extract_dimensions(self.rewards)
+
+        if attr.shape[0] != w.shape[0]:
+            raise ValueError(f"Batch size mismatch! attr has {attr.shape[0]}, expected {w.shape[0]}")
+        
+        # print(f"attr shape: {attr.shape}")
+        # print(f"attr min/max/mean: {attr.min().item():.4f}/{attr.max().item():.4f}/{attr.mean().item():.4f}")
+        
+        beta = self.variant["beta"]
+        
+        # w shape: (batch_size, num_heads, seq_len, seq_len)
+        # attr shape: (batch_size, num_heads, seq_len, 1)
+        # Apply attraction to attention weights at action token indices
+        for a_ind in action_indices:
+            a_val = attr[:, :, a_ind, :]
+            a_val_expanded = a_val.expand(-1, -1, w.size(2))
+            w[:, :, :, a_ind] += beta * a_val_expanded
+
+        # print(f"*** Attraction min/max/mean: {attr.min().item():.4f}/{attr.max().item():.4f}/{attr.mean().item():.4f}, w min/max/mean: {w.min().item():.4f}/{w.max().item():.4f}/{w.mean().item():.4f}")
+
 
         if not self.is_cross_attention:
             # if only "normal" attention layer implements causal mask
@@ -269,93 +317,9 @@ class Attention(nn.Module):
             # Apply the attention mask
             w = w + attention_mask
 
-        print(f"w min/max/mean before EWA after mask: {w.min().item():.4f}/{w.max().item():.4f}/{w.mean().item():.4f}")
-
-        # Store original attention weights for analysis
-        w_original = w.clone()
-        debug_data = {
-            "attention_scores_before": w_original.cpu().detach().numpy(),
-        }
-        
-        # EWA: Apply EWA to attention weights of action tokens
-        if not hasattr(self, "rewards") or self.rewards is None:
-            raise ValueError("Error: rewards are not set in `Attention` class before calling `_attn()`!")
-        if not hasattr(self, "actions") or self.actions is None:
-            raise ValueError("Error: actions are not set in `Attention` class before calling `_attn()`!")
-
-        # Ensure rewards are on the same device
-        self.rewards = self.rewards.to(w.device)
-        self.actions = self.actions.to(w.device)
-        
-        # Use existing EWA instance instead of creating new one
-        if self.ewa is not None:  # Only update if we have an EWA instance (self-attention)
-            self.ewa.update(self.actions, self.rewards)
-
-        # Get attraction values for action tokens
-        attr = self.ewa.get_attraction(actions=self.actions).to(w.device)
-        
-
-        if attr.shape[0] != w.shape[0]:
-            raise ValueError(f"Batch size mismatch! attr has {attr.shape[0]}, expected {w.shape[0]}")
-        print(f"attr shape: {attr.shape}")
-        print(f"attr min/max/mean: {attr.min().item():.4f}/{attr.max().item():.4f}/{attr.mean().item():.4f}")
-        
-        beta = self.variant["beta"]
-        print(f"beta: {beta}")
-        
-        # print(f"before W: {w[:,:,:,self.ewa.action_indices]}")
-
-        # w shape: (batch_size, num_heads, seq_len, seq_len)
-        # attr shape: (batch_size, num_heads, seq_len, 1)
-        # Apply attraction to attention weights
-        for a_ind in self.ewa.action_indices:
-                a_val = attr[:, :, a_ind, :]
-                a_val_expanded = a_val.expand(-1, -1, w.size(2))
-                w[:, :, :, a_ind] += beta * a_val_expanded
-        # print(f"after W: {w[:,:,:,self.ewa.action_indices]}")
-        print(f"w min/max/mean after EWA: {w.min().item():.4f}/{w.max().item():.4f}/{w.mean().item():.4f}")
-        print(f"Non-zero elements in w: {(w != self.masked_bias.to(w.dtype)).sum().item()}")
-
-#######################################################
-        # # Get min, max and average values for a_val
-        # a_val_min = a_val.min().item()
-        # a_val_max = a_val.max().item() 
-        # a_val_mean = a_val.mean().item()
-        
-        # # Print stats for non-masked attention weights
-        # non_masked_mask = (w != self.masked_bias.to(w.dtype))
-        # non_masked_weights = w[non_masked_mask]
-
-        # if non_masked_weights.numel() > 0:  # Only print if there are non-masked weights
-        #     print("\nNon-masked attention weights stats:")
-        #     print(f"Min: {non_masked_weights.min().item():.4f}, Max: {non_masked_weights.max().item():.4f}, Mean: {non_masked_weights.mean().item():.4f}")
-            
-        #     # Count positive vs negative weights
-        #     positive_count = (non_masked_weights > 0).sum().item()
-        #     negative_count = (non_masked_weights <= 0).sum().item()
-        #     total_count = non_masked_weights.numel()
-            
-        #     print(f"Positive weights: {positive_count} ({positive_count/total_count*100:.2f}%)")
-        #     print(f"Negative weights: {negative_count} ({negative_count/total_count*100:.2f}%)")
-            
-        #     # Calculate mean of positive weights only
-        #     positive_weights = non_masked_weights[non_masked_weights > 0]
-        #     if positive_weights.numel() > 0:
-        #         print(f"Mean of positive weights: {positive_weights.mean().item():.4f}")
-            
-        #     # Calculate mean of negative weights only
-        #     negative_weights = non_masked_weights[non_masked_weights <= 0]
-        #     if negative_weights.numel() > 0:
-        #         print(f"Mean of negative weights: {negative_weights.mean().item():.4f}")
-        # else:
-        #     print("\nNo non-masked attention weights found")
-        
-        # print("\nAttraction values stats:")
-        # print(f"Min: {a_val_min:.4f}, Max: {a_val_max:.4f}, Mean: {a_val_mean:.4f}")
-#######################################################        
+        # print(f"w min/max/mean after EWA after mask: {w.min().item():.4f}/{w.max().item():.4f}/{w.mean().item():.4f}")     
 
         w = nn.Softmax(dim=-1)(w)
-        print(f"w min/max/mean after EWA and softmax: {w.min().item():.4f}/{w.max().item():.4f}/{w.mean().item():.4f}")
         w = self.attn_dropout(w)
 
         if head_mask is not None:

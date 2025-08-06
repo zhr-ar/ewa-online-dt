@@ -9,7 +9,7 @@ import warnings
 warnings.filterwarnings("ignore", category=UserWarning, module="gym.spaces.box")
 warnings.filterwarnings("ignore", category=DeprecationWarning, module="gym.core")
 warnings.filterwarnings("once")
-
+ 
 from torch.utils.tensorboard import SummaryWriter
 import argparse
 import pickle
@@ -27,7 +27,7 @@ from stable_baselines3.common.vec_env import SubprocVecEnv
 from pathlib import Path
 from data import create_dataloader
 from decision_transformer.models.decision_transformer import DecisionTransformer
-from decision_transformer.models.ewa_kernel import EWAKernel
+from decision_transformer.models.ewa_vq import EWAVQ
 from evaluation import create_vec_eval_episodes_fn, vec_evaluate_episode_rtg
 from trainer import SequenceTrainer
 from logger import Logger
@@ -386,12 +386,16 @@ class Experiment:
                     # Track EWA behavior across all transformer blocks
                     for layer_idx, block in enumerate(self.model.transformer.h):
                         ewa_instance = block.attn.ewa
-                        steps,attraction_values = ewa_instance.get_history()
-                        print(f"EWA  specific metric in layer {layer_idx}: attraction_values: {attraction_values}")
-                        for step, attraction in zip(steps, attraction_values):
-                            # writer.add_scalar(f'ewa/delta_layer_{layer_idx}', delta, step)
-                            # writer.add_scalar(f'ewa/decay_ratio_layer_{layer_idx}', decay, step)
+                        steps, attraction_values, code_usage_values, reward_values = ewa_instance.get_history()
+                        print(f"EWA VQ specific metrics in layer {layer_idx}:")
+                        print(f"  - Attraction values: {attraction_values}")
+                        print(f"  - Code usage values: {code_usage_values}")
+                        print(f"  - Reward values: {reward_values}")
+                        
+                        for step, attraction, code_usage, reward in zip(steps, attraction_values, code_usage_values, reward_values):
                             writer.add_scalar(f'ewa/attraction_layer_{layer_idx}', attraction, step)
+                            writer.add_scalar(f'ewa/code_usage_layer_{layer_idx}', code_usage, step)
+                            writer.add_scalar(f'ewa/reward_layer_{layer_idx}', reward, step)
                             
                         # # Also log the current values
                         # current_delta, current_decay = ewa_instance.compute_delta_and_decay_ratio()
@@ -505,7 +509,7 @@ if __name__ == "__main__":
     parser.add_argument("--env", type=str, default="walker2d-medium-replay-v2")
 
     # model options
-    parser.add_argument("--K", type=int, default=20) # zahra original was 20- differs for each env
+    parser.add_argument("--K", type=int, default=20) # zahra: original was 20- differs for each env
     parser.add_argument("--embed_dim", type=int, default=512)
     parser.add_argument("--n_layer", type=int, default=4)
     parser.add_argument("--n_head", type=int, default=4)
@@ -513,7 +517,7 @@ if __name__ == "__main__":
     parser.add_argument("--dropout", type=float, default=0.1)
     parser.add_argument("--eval_context_length", type=int, default=5) # zahra differs for each env
     # 0: no pos embedding others: absolute ordering
-    parser.add_argument("--ordering", type=int, default=0) # zahra differs for each env
+    parser.add_argument("--ordering", type=int, default=0) # zahra: differs for each env
 
     # shared evaluation options
     parser.add_argument("--eval_rtg", type=int, default=3600)
@@ -541,11 +545,13 @@ if __name__ == "__main__":
     # EWA number of online samples = max_online_iters * num_online_rollouts * num_updates_per_online_iter * batch_size
 
     # EWA specific options
-    parser.add_argument("--beta", type=float, default=1.0, help="Scaling factor for EWA attention weights")
-    parser.add_argument("--phi", type=float, default=0.9, help="Initial forgetting factor for EWA")
-    parser.add_argument("--initial_delta", type=float, default=0.7, help="Initial delta value for EWA")
-    parser.add_argument("--final_delta", type=float, default=0.1, help="Final delta value for EWA")
+    parser.add_argument("--beta", type=float, default=0.05, help="Scaling factor for EWA attention weights")
+    parser.add_argument("--phi", type=float, default=0.05, help="How fast old attractions fade")
+    parser.add_argument("--delta", type=float, default=0.8, help="Delta value for EWA")
     parser.add_argument("--trajectory_length", type=int, default=1000, help="Maximum trajectory length for EWA")
+    parser.add_argument("--disable_ewa", action="store_true", help="Disable EWA processing entirely for testing")
+    parser.add_argument("--num_codes", type=int, default=16, help="Number of VQ codes for EWA")
+    parser.add_argument("--grid_bins_factor", type=float, default=1.0, help="Grid bins per action dimension (adaptive)")
 
     # environment options
     parser.add_argument("--device", type=str, default="cuda")
@@ -555,7 +561,17 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
+    args.device = "cuda" if torch.cuda.is_available() else "cpu"
     utils.set_seed_everywhere(args.seed)
+    
+    # Debug: Print device information
+    print(f"CUDA available: {torch.cuda.is_available()}")
+    if torch.cuda.is_available():
+        print(f"CUDA device count: {torch.cuda.device_count()}")
+        print(f"Current CUDA device: {torch.cuda.current_device()}")
+        print(f"CUDA device name: {torch.cuda.get_device_name()}")
+    print(f"Using device: {args.device}")
+    
     experiment = Experiment(vars(args))
 
     print("=" * 50)

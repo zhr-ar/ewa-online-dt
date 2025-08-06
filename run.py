@@ -13,13 +13,14 @@ base_command = "python main.py"
 results_dir = "./exp"
 os.makedirs(results_dir, exist_ok=True)
 
-# Define EWA parameters
+# EWA Configuration
 EWA_CONFIG = {
-    "beta": 1.0,
-    "phi": 0.9,
-    "initial_delta": 0.7,
-    "final_delta": 0.1,
-    "trajectory_length": 1000
+    "beta": 0.05,
+    "phi": 0.05,
+    "delta": 0.8,
+    "trajectory_length": 1000,
+    "num_codes": 16,
+    "grid_bins_factor": 1.0,  # Adaptive: 1.0 bins per action dimension
 }
 
 exp_name = "ewa" ## !!! manually specify odt or ewa !!!
@@ -49,7 +50,7 @@ ENV_CONFIG = {
 experiments = []
 
 # Add experiment for max_iters=30 
-for seed in range(1, 11):  # 10 seeds
+for seed in range(1, 6):  # 5 seeds
     experiments.append({
         "exp_name": exp_name,
         "name_run": "normalized_return_vs_steps_30iter",
@@ -122,9 +123,10 @@ def run_experiment(run_config):
             f"--ordering {env_config['ordering']} "
             f"--beta {run_config['beta']} "
             f"--phi {run_config['phi']} "
-            f"--initial_delta {run_config['initial_delta']} "
-            f"--final_delta {run_config['final_delta']} "
+            f"--delta {run_config['delta']} "
             f"--trajectory_length {run_config['trajectory_length']} "
+            f"--num_codes {run_config['num_codes']} "
+            f"--grid_bins_factor {run_config['grid_bins_factor']} "
         )
         
         if "num_updates_per_online_iter" in run_config:
@@ -146,36 +148,39 @@ def run_experiment(run_config):
         with open(config_path, "w") as f:
             json.dump(run_config, f, indent=4)
         
-        # Run command and save output to log.txt
-        # with open(os.path.join(info_folder, "log.txt"), "w") as log_file:
-        #     subprocess.run(command, shell=True, stdout=log_file, stderr=log_file)
-
         # Run command and save output to log.txt while also showing in terminal
         log_path = os.path.join(info_folder, "log.txt")
-        with open(log_path, "w") as log_file:
+        
+        # Simple approach: run with real-time output
+        def run_with_output(command, log_file):
             process = subprocess.Popen(
                 command,
                 shell=True,
                 stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,  # Redirect stderr to stdout
+                stderr=subprocess.STDOUT,
                 text=True,
                 bufsize=1,
                 universal_newlines=True
             )
             
-            # Read and log output in real-time
-            for line in process.stdout:
-                print(line, end='')  # Print to terminal
-                log_file.write(line)  # Write to file
-                log_file.flush()  # Ensure immediate writing
+            while True:
+                output = process.stdout.readline()
+                if output == '' and process.poll() is not None:
+                    break
+                if output:
+                    print(output.rstrip())  # Print to terminal immediately
+                    log_file.write(output)  # Write to file
+                    log_file.flush()  # Ensure immediate writing
             
-            # Wait for process to complete
-            process.wait()
-            
-            # Check if process failed
-            if process.returncode != 0:
-                print(f"Process failed with return code {process.returncode}")
-                sys.exit(process.returncode)
+            return process.poll()
+        
+        with open(log_path, "w") as log_file:
+            return_code = run_with_output(command, log_file)
+        
+        # Check if process failed
+        if return_code != 0:
+            print(f"Process failed with return code {return_code}")
+            sys.exit(return_code)
 
 # Run all experiments
 for exp in experiments:
