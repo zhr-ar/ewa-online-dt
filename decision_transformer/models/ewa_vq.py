@@ -1,6 +1,5 @@
 import torch
 import numpy as np
-from sklearn.cluster import KMeans
 import os
 import pickle
 
@@ -69,8 +68,8 @@ class EWAVQ:
         self.num_codes = num_codes
         self.grid_bins = grid_bins
         
-        # VQ codebook
-        self.codes = None  # Will be initialized with k-means
+        # VQ codebook - will be initialized with static grid-based codes
+        self.codes = None
         
         # Grid lookup table for fast routing - will be loaded from cache
         self.grid_table = None
@@ -113,50 +112,43 @@ class EWAVQ:
         
         return batch_size, num_action_tokens, self.tuple_seq_length, action_indices
 
-    def initialize_codes(self, actions_sample):
+    def _generate_static_codes(self, action_dim):
         """
-        Initialize VQ codes using k-means clustering on a sample of actions.
+        Generate static codes based on grid coordinates.
+        This is much simpler and more reliable than k-means.
+        """
+        print(f"Generating static codes for action_dim={action_dim}, num_codes={self.num_codes}")
+        
+        # Generate codes by sampling grid coordinates
+        codes = []
+        for i in range(self.num_codes):
+            # Convert linear index to grid coordinates
+            coords = self._linear_to_grid_coords_static(i, action_dim, self.grid_bins)
+            # Convert grid coordinates to action space
+            code = self._grid_coords_to_action_static(coords, self.grid_bins, self.device)
+            codes.append(code)
+        
+        self.codes = torch.stack(codes)
+        print(f"Static codes generated. Shape: {self.codes.shape}")
+        print(f"Code range: [{self.codes.min().item():.3f}, {self.codes.max().item():.3f}]")
+
+    def initialize_codes(self, action_dim):
+        """
+        Initialize VQ codes using static grid-based generation.
         Args:
-            actions_sample: tensor of shape (N, d) - sample of actions for clustering
+            action_dim: dimension of action space
         """
-        print(f"\n*** EWAVQ: Starting code initialization ***")
-        print(f"Initializing VQ codes with {len(actions_sample)} samples, action_dim={actions_sample.shape[1]}")
+        print(f"\n*** EWAVQ: Starting static code initialization ***")
+        print(f"Initializing VQ codes for action_dim={action_dim}")
         
         if self.codes_initialized:
             print("VQ codes already initialized, skipping")
             return
             
-        # Check if we have enough samples
-        if len(actions_sample) < self.num_codes:
-            print(f"Warning: Only {len(actions_sample)} samples available, need at least {self.num_codes} for k-means.")
-            print("Using random initialization instead.")
-            # Use random initialization as fallback
-            action_dim = actions_sample.shape[1]
-            self.codes = torch.randn(self.num_codes, action_dim, device=self.device, dtype=torch.float32)
-            # Load grid table from cache
-            # Get environment name from variant if available
-            env_name = getattr(self, 'variant', {}).get('env', None) if hasattr(self, 'variant') else None
-            self._load_grid_table_from_cache(action_dim, env_name)
-            self.codes_initialized = True
-            return
-            
-        print(f"Initializing VQ codes with {self.num_codes} centroids...")
-        
-        # Convert to numpy for sklearn
-        actions_np = actions_sample.cpu().numpy()
-        
-        # Run k-means clustering
-        print("Running k-means clustering...")
-        kmeans = KMeans(n_clusters=self.num_codes, random_state=42, n_init=10)
-        kmeans.fit(actions_np)
-        print("K-means clustering completed")
-        
-        # Store codes
-        self.codes = torch.tensor(kmeans.cluster_centers_, device=self.device, dtype=torch.float32)
+        # Generate static codes from grid
+        self._generate_static_codes(action_dim)
         
         # Load grid table from cache
-        action_dim = self.codes.shape[1]
-        # Get environment name from variant if available
         env_name = getattr(self, 'variant', {}).get('env', None) if hasattr(self, 'variant') else None
         self._load_grid_table_from_cache(action_dim, env_name)
         
@@ -268,33 +260,9 @@ class EWAVQ:
         
         # Initialize codes if not done yet
         if not self.codes_initialized:
-            # For the first few batches, collect samples for better initialization
-            if not hasattr(self, 'sample_buffer'):
-                self.sample_buffer = []
-                self.samples_needed = max(100, self.num_codes * 2)  # Collect at least 100 samples
-            
-            # Add current actions to sample buffer
-            self.sample_buffer.append(actions)
-            
-            # If we have enough samples, initialize codes
-            total_samples = sum(len(buf) for buf in self.sample_buffer)
-            if total_samples >= self.samples_needed:
-                # Concatenate all samples
-                all_samples = torch.cat(self.sample_buffer, dim=0)
-                self.initialize_codes(all_samples)
-                # Clear buffer after initialization
-                self.sample_buffer = []
-            else:
-                # Use random initialization for now
-                action_dim = actions.shape[1]
-                self.codes = torch.randn(self.num_codes, action_dim, device=self.device, dtype=torch.float32)
-                # Get environment name from variant if available
-                env_name = getattr(self, 'variant', {}).get('env', None) if hasattr(self, 'variant') else None
-                self._load_grid_table_from_cache(action_dim, env_name)
-                self.codes_initialized = True
-                # print(f"🚀 VQ INIT: Random codes initialized (collecting samples). Code shape: {self.codes.shape}")
-                # print(f"   -> Sample buffer: {len(self.sample_buffer)} batches, {total_samples}/{self.samples_needed} samples")
-                # print(f"   -> Codes range: [{self.codes.min().item():.4f}, {self.codes.max().item():.4f}]")
+            # Simple initialization based on action dimension
+            action_dim = actions.shape[1]
+            self.initialize_codes(action_dim)
         
         # Track trajectory info
         D_trajectory = []
@@ -366,16 +334,6 @@ class EWAVQ:
         self.code_usage_history.append(torch.sum(code_usage > 0).item())
         self.reward_history.append(np.mean(trajectory_rewards))
         
-
-        # final_attractions = [f'{step["A_t"]:.3f}' for step in D_trajectory]
-        # print(f"  Final step attractions: {final_attractions}")
-        # print(f"  VQ kernel: {len(D_kernel)} codes with attractions")
-        # for code_info in D_kernel:
-        #     print(f"    Code {code_info['code_idx']}: attraction {code_info['A']:.3f}")
-        # print(f"  Code usage: {code_usage.tolist()}")
-        # print(f"  Mean reward: {np.mean(trajectory_rewards):.3f}")
-        # print(f"  Steps processed: {len(D_trajectory)}")
-        # print("=" * 50)
         
         return D_kernel, D_trajectory
 
@@ -399,7 +357,6 @@ class EWAVQ:
             D_kernel, D_trajectory = self.process_trajectory(actions[b], rewards[b])
             D_kernels.append(D_kernel)
             D_trajectories.append(D_trajectory)
-        
         return D_kernels, D_trajectories
 
     def get_attraction(self, D_trajectories, rewards):
@@ -449,24 +406,24 @@ class EWAVQ:
         
         return steps, attraction_values, code_usage_values, reward_values
 
-    def update_codes_offline(self, all_actions):
-        """
-        Update VQ codes using k-means on all available actions.
-        Call this periodically (e.g., every 10-20 epochs).
-        Args:
-            all_actions: tensor of shape (N, d) - all actions from dataset
-        """
-        # print(f"Updating VQ codes with {len(all_actions)} actions...")
+    # def update_codes_offline(self, all_actions):
+    #     """
+    #     Update VQ codes using k-means on all available actions.
+    #     Call this periodically (e.g., every 10-20 epochs).
+    #     Args:
+    #         all_actions: tensor of shape (N, d) - all actions from dataset
+    #     """
+    #     # print(f"Updating VQ codes with {len(all_actions)} actions...")
         
-        # Convert to numpy for sklearn
-        actions_np = all_actions.cpu().numpy()
+    #     # Convert to numpy for sklearn
+    #     actions_np = all_actions.cpu().numpy()
         
-        # Run k-means clustering
-        kmeans = KMeans(n_clusters=self.num_codes, random_state=42, n_init=10)
-        kmeans.fit(actions_np)
+    #     # Run k-means clustering
+    #     kmeans = KMeans(n_clusters=self.num_codes, random_state=42, n_init=10)
+    #     kmeans.fit(actions_np)
         
-        # Update codes
-        self.codes = torch.tensor(kmeans.cluster_centers_, device=self.device, dtype=torch.float32)
+    #     # Update codes
+    #     self.codes = torch.tensor(kmeans.cluster_centers_, device=self.device, dtype=torch.float32)
         
-        # Grid table is already cached, no need to rebuild
-        # print(f"VQ codes updated. New code shape: {self.codes.shape}") 
+    #     # Grid table is already cached, no need to rebuild
+    #     # print(f"VQ codes updated. New code shape: {self.codes.shape}") 

@@ -106,7 +106,6 @@ class EWAKernel:
     def process_trajectory(self, actions, rewards):
         """
         Process a single trajectory to build clusters and compute attractions.
-        OPTIMIZED VERSION: Simplified clustering for speed.
         Args:
             actions: tensor of shape (k, d) for one trajectory
             rewards: tensor of shape (k,) or (k, 1) for one trajectory
@@ -114,6 +113,7 @@ class EWAKernel:
             D_kernel: list of clusters with centers and attractions
             D_trajectory: list of dicts with action info and attractions
         """
+        print(f"Processing trajectory with actions shape: {actions.shape} and rewards shape: {rewards.shape}")
         # Extract actual sequence length from rewards (not actions)
         # This is needed because in evaluation phase, sequences grow step-by-step:
         # Step 0: actions(10,1,6), rewards(10,1,1) -> Step 19: actions(10,20,6), rewards(10,20,1)
@@ -127,10 +127,8 @@ class EWAKernel:
         d = actions.shape[1]
         actions = actions.to(self.device)
         rewards = rewards.view(-1).to(self.device)  # (k,)
-        
-        # OPTIMIZATION: Use fixed sigma and tau for speed
-        sigma = 0.3  # Fixed kernel width
-        tau = 0.7    # Fixed similarity threshold
+        sigma, tau = self.pick_sigma_tau(actions)
+        print(f"K: {k}")
         
         # Track sigma and tau for this trajectory
         self.sigma_history.append(sigma)
@@ -143,9 +141,6 @@ class EWAKernel:
         # Track rewards for this trajectory
         trajectory_rewards = []
         
-        # OPTIMIZATION: Limit number of clusters for speed
-        max_clusters = min(10, k)  # Maximum 10 clusters per trajectory
-        
         for t in range(k):
             a_t = actions[t]
             r_t = rewards[t]
@@ -153,15 +148,13 @@ class EWAKernel:
             # Track reward
             trajectory_rewards.append(r_t.item())
 
-            # 1. Compute similarities to all clusters (OPTIMIZED)
+            # 1. Compute similarities to all clusters
             if len(D_kernel) == 0:
                 k_js = torch.zeros(0, device=self.device)
             else:
-                # OPTIMIZATION: Use vectorized computation
                 mus = torch.stack([c['mu'] for c in D_kernel])  # (J, d)
                 diff = mus - a_t.unsqueeze(0)  # (J, d)
                 k_js = torch.exp(-torch.norm(diff, dim=1) ** 2 / (2 * sigma ** 2))  # (J,)
-            
             if len(k_js) > 0:
                 j_star = torch.argmax(k_js).item()
                 k_star = k_js[j_star].item()
@@ -173,8 +166,8 @@ class EWAKernel:
             for c in D_kernel:
                 c['A'] = (1 - self.phi) * c['A']
             
-            # 3. Update or create cluster (OPTIMIZED)
-            if k_star >= tau and len(D_kernel) > 0 and len(D_kernel) < max_clusters:
+            # 3. Update or create cluster
+            if k_star >= tau and len(D_kernel) > 0:
                 # Similar to existing cluster
                 c = D_kernel[j_star]
                 c['A'] += self.delta * r_t * k_star
@@ -183,26 +176,13 @@ class EWAKernel:
                 cluster_id = j_star
                 A_t = c['A']
                 k_t = k_star
-            elif len(D_kernel) < max_clusters:
+            else:
                 # Create new cluster
                 new_cluster = {'mu': a_t.clone(), 'A': self.delta * r_t}
                 D_kernel.append(new_cluster)
                 cluster_id = len(D_kernel) - 1
                 A_t = new_cluster['A']
-                k_t = k_star if len(D_kernel) > 1 else 1.0
-            else:
-                # OPTIMIZATION: If too many clusters, just use the most similar existing one
-                if len(D_kernel) > 0:
-                    j_star = torch.argmax(k_js).item()
-                    c = D_kernel[j_star]
-                    c['A'] += self.delta * r_t * k_star
-                    cluster_id = j_star
-                    A_t = c['A']
-                    k_t = k_star
-                else:
-                    cluster_id = 0
-                    A_t = self.delta * r_t
-                    k_t = 1.0
+                k_t = k_star if len(D_kernel) > 1 else 1.0  # Use max similarity, or 1.0 if first cluster
             
             # Log to D_trajectory
             D_trajectory.append({
@@ -224,7 +204,6 @@ class EWAKernel:
     def process_batch(self, actions, rewards):
         """
         Process a batch of trajectories.
-        OPTIMIZED VERSION: Reduced overhead and early termination.
         Args:
             actions: tensor of shape (B, k, d)
             rewards: tensor of shape (B, k) or (B, k, 1)
@@ -235,19 +214,19 @@ class EWAKernel:
         # Extract dimensions dynamically
         batch_size, num_action_tokens, tuple_seq_length, action_indices = self._extract_dimensions(rewards)
         
+        # # Store current state for get_attraction
+        # self.current_batch_size = batch_size
+        # self.current_action_indices = action_indices
+        # self.current_tuple_seq_length = tuple_seq_length
+        
         D_kernels = []
         D_trajectories = []
         
-        # # OPTIMIZATION: Reduce progress prints for large batches
-        # progress_interval = max(1, batch_size // 20)  # Print every 5% instead of 10%
-        
         for b in range(batch_size):
-            # if b % progress_interval == 0:  # Print progress every 5% of trajectories
-            #     print(f"EWA: Processing trajectory {b+1}/{batch_size}")
             D_kernel, D_trajectory = self.process_trajectory(actions[b], rewards[b])
             D_kernels.append(D_kernel)
             D_trajectories.append(D_trajectory)
-
+        
         return D_kernels, D_trajectories
 
     def get_attraction(self, D_trajectories, rewards):

@@ -27,12 +27,6 @@ exp_name = "ewa" ## !!! manually specify odt or ewa !!!
 
 # Define RTG values and environment-specific parameters for each environment
 ENV_CONFIG = {
-    "halfcheetah-medium-expert-v2": {
-        "online_rtg": 12000,
-        "eval_rtg": 6000,
-        "eval_context_length": 5,
-        "ordering": 0  # no positional embedding
-    },
     "walker2d-medium-replay-v2": {
         "online_rtg": 10000,
         "eval_rtg": 5000,
@@ -49,57 +43,57 @@ ENV_CONFIG = {
 
 experiments = []
 
-# Add experiment for max_iters=30 
+# Add experiment for max_iters=20 
 for seed in range(1, 6):  # 5 seeds
     experiments.append({
         "exp_name": exp_name,
         "name_run": "normalized_return_vs_steps_30iter",
-        "max_online_iters": 30,
+        "max_online_iters": 20,
         "num_updates_per_online_iter": 100,
         "eval_interval": 2,
-        "envs": ["halfcheetah-medium-expert-v2", "walker2d-medium-replay-v2", "hopper-medium-v2"],
+        "envs": ["hopper-medium-v2", "walker2d-medium-replay-v2"],  # Removed halfcheetah (6D)
         "seed": seed,
         **EWA_CONFIG  # Unpack EWA parameters
     })
 
 # Run with max_iters=100 for different seeds
 # Results for intermediate iterations will be captured in TensorBoard logs
-for seed in range(1, 11):  # 10 seeds
+for seed in range(1, 6):  # 5 seeds
     experiments.append({
         "exp_name": exp_name, 
         "name_run": "normalized_return_vs_steps",
         "max_online_iters": 100,  # Will capture results for all intermediate iterations
         "num_updates_per_online_iter": 100,
         "eval_interval": 2,  # Evaluate every 2 iterations to get good granularity
-        "envs": ["halfcheetah-medium-expert-v2", "walker2d-medium-replay-v2", "hopper-medium-v2"],
+        "envs": ["hopper-medium-v2", "walker2d-medium-replay-v2"],  # Removed halfcheetah (6D)
         "seed": seed,
         **EWA_CONFIG  # Unpack EWA parameters
     })
 
 # Vary number of online rollouts
-for rollouts in range(1, 11, 1):
-    for seed in range(1, 11):
+for rollouts in range(1, 6, 1):
+    for seed in range(1, 6):
         experiments.append({
             "exp_name": exp_name,
             "name_run": "return_vs_online_rollouts",
             "max_online_iters": 30,
             "num_online_rollouts": rollouts,
             "eval_interval": 2,
-            "envs": ["halfcheetah-medium-expert-v2", "walker2d-medium-replay-v2", "hopper-medium-v2"],
+            "envs": ["hopper-medium-v2", "walker2d-medium-replay-v2"],  # Removed halfcheetah (6D)
             "seed": seed,
             **EWA_CONFIG  # Unpack EWA parameters
         })
 
 # Vary training iterations per online iter
 for updates in range(50, 501, 50):
-    for seed in range(1, 11):
+    for seed in range(1, 6):
         experiments.append({
             "exp_name": exp_name,
             "name_run": "action_entropy_vs_training",
             "max_online_iters": 30,
             "num_updates_per_online_iter": updates,
             "eval_interval": 3,
-            "envs": ["halfcheetah-medium-expert-v2", "walker2d-medium-replay-v2", "hopper-medium-v2"],
+            "envs": ["hopper-medium-v2", "walker2d-medium-replay-v2"],  # Removed halfcheetah (6D)
             "seed": seed,
             **EWA_CONFIG  # Unpack EWA parameters
         })

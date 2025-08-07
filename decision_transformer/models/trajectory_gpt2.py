@@ -292,8 +292,6 @@ class Attention(nn.Module):
         if attr.shape[0] != w.shape[0]:
             raise ValueError(f"Batch size mismatch! attr has {attr.shape[0]}, expected {w.shape[0]}")
         
-        # print(f"attr shape: {attr.shape}")
-        # print(f"attr min/max/mean: {attr.min().item():.4f}/{attr.max().item():.4f}/{attr.mean().item():.4f}")
         
         beta = self.variant["beta"]
         
@@ -305,7 +303,7 @@ class Attention(nn.Module):
             a_val_expanded = a_val.expand(-1, -1, w.size(2))
             w[:, :, :, a_ind] += beta * a_val_expanded
 
-        # print(f"*** Attraction min/max/mean: {attr.min().item():.4f}/{attr.max().item():.4f}/{attr.mean().item():.4f}, w min/max/mean: {w.min().item():.4f}/{w.max().item():.4f}/{w.mean().item():.4f}")
+        # print(f"*** Attr min/max/mean: {attr.min().item():.4f}/{attr.max().item():.4f}/{attr.mean().item():.4f}; Attn W  min/max/mean: {w.min().item():.4f}/{w.max().item():.4f}/{w.mean().item():.4f}")
 
 
         if not self.is_cross_attention:

@@ -535,12 +535,12 @@ if __name__ == "__main__":
     parser.add_argument("--num_updates_per_pretrain_iter", type=int, default=5000)
 
     # finetuning options
-    parser.add_argument("--max_online_iters", type=int, default=10) # zahra original was 1500
+    parser.add_argument("--max_online_iters", type=int, default=20) # zahra original was 1500
     # hopper=7200, walker=10000, halfcheetah=12000, ant=12000 
     parser.add_argument("--online_rtg", type=int, default=7200)
     parser.add_argument("--num_online_rollouts", type=int, default=1)
     parser.add_argument("--replay_size", type=int, default=1000)
-    parser.add_argument("--num_updates_per_online_iter", type=int, default=5)  # zahra original was 300
+    parser.add_argument("--num_updates_per_online_iter", type=int, default=100)  # zahra original was 300
     parser.add_argument("--eval_interval", type=int, default=10)
     # EWA number of online samples = max_online_iters * num_online_rollouts * num_updates_per_online_iter * batch_size
 

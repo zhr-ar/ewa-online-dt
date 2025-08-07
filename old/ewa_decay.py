@@ -130,9 +130,7 @@ class EWADecay:
         # Record attraction values in history
         # Convert to numpy and take mean across batch and heads for each action token
         attraction_np = self.attraction_values.detach().cpu().numpy()
-        # Calculate mean attraction value across all dimensions (batch, heads, action tokens)
-        mean_attraction = np.mean(attraction_np[:, :, action_indices.cpu().numpy(), :])
-        self.attraction_history.append(mean_attraction)
+         attraction_values = np.array(self.attraction_history)
 
         self.action_indices = action_indices
         
