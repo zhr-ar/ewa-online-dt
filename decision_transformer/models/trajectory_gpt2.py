@@ -259,14 +259,40 @@ class Attention(nn.Module):
             # Calculate adaptive grid_bins based on action dimension
             action_dim = self.actions.shape[-1] if hasattr(self, 'actions') and self.actions is not None else 6  # Default for halfcheetah
             grid_bins_factor = self.variant.get("grid_bins_factor", 1.0)
-            adaptive_grid_bins = max(2, min(8, int(grid_bins_factor * action_dim)))
+            
+            # For high-dimensional environments, use smaller grid_bins_factor automatically
+            if action_dim > 6:
+                # Use smaller grid_bins_factor for high-dimensional environments
+                adjusted_grid_bins_factor = min(grid_bins_factor, 0.5)
+            else:
+                adjusted_grid_bins_factor = grid_bins_factor
+            
+            adaptive_grid_bins = max(2, min(8, int(adjusted_grid_bins_factor * action_dim)))
+            
+            # Automatically determine number of codes based on grid size
+            total_grid_cells = adaptive_grid_bins ** action_dim
+            
+            # Safety check: limit grid size for high-dimensional environments
+            max_reasonable_codes = 36  # Fixed maximum for consistent behavior across environments
+            if total_grid_cells > max_reasonable_codes:
+                default_num_codes = max_reasonable_codes
+            else:
+                default_num_codes = total_grid_cells
+            
+            # Use calculated default, but allow override via num_codes parameter
+            # If num_codes is None or not specified, use the calculated default
+            num_codes = self.variant.get("num_codes")
+            if num_codes is None:
+                num_codes = default_num_codes
+            # Ensure we don't exceed the total number of grid cells
+            num_codes = min(num_codes, total_grid_cells)
             
             self.ewa = EWAVQ(
                 num_heads=num_heads,
                 tuple_seq_length=tuple_seq_length,
                 phi=self.variant["phi"],
                 delta=self.variant["delta"],
-                num_codes=self.variant.get("num_codes", 16),  # Number of VQ codes
+                num_codes=num_codes,  # Use all grid cells
                 grid_bins=adaptive_grid_bins  # Adaptive grid bins
             )
             # Pass variant to EWAVQ for environment name access

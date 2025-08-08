@@ -259,9 +259,27 @@ class Experiment:
         writer = (
             SummaryWriter(self.logger.log_path) if self.variant["log_to_tb"] else None
         )
+        
+        # PERFORMANCE MONITORING
+        import psutil
+        start_time = time.time()
+        
         while self.pretrain_iter < self.variant["max_pretrain_iters"]:
             temp = self.variant["max_pretrain_iters"]
             print(f"**** pretrain_iter {self.pretrain_iter} out of {temp}")
+            
+            # Performance monitoring
+            elapsed = time.time() - start_time
+            gpu_memory = torch.cuda.memory_allocated() / 1024**3 if torch.cuda.is_available() else 0
+            cpu_percent = psutil.cpu_percent()
+            print(f"PERFORMANCE: Iteration {self.pretrain_iter}")
+            print(f"  Time elapsed: {elapsed:.2f}s")
+            print(f"  GPU Memory: {gpu_memory:.2f}GB")
+            print(f"  CPU Usage: {cpu_percent:.1f}%")
+            
+            if elapsed > 300:  # 5 minutes
+                print(f"  ⚠️  WARNING: Iteration taking too long!")
+            
             # in every iteration, prepare the data loader
             dataloader = create_dataloader(
                 trajectories=self.offline_trajs,
@@ -550,7 +568,7 @@ if __name__ == "__main__":
     parser.add_argument("--delta", type=float, default=0.8, help="Delta value for EWA")
     parser.add_argument("--trajectory_length", type=int, default=1000, help="Maximum trajectory length for EWA")
     parser.add_argument("--disable_ewa", action="store_true", help="Disable EWA processing entirely for testing")
-    parser.add_argument("--num_codes", type=int, default=16, help="Number of VQ codes for EWA")
+    parser.add_argument("--num_codes", type=int, default=None, help="Number of VQ codes for EWA (default: use all grid cells)")
     parser.add_argument("--grid_bins_factor", type=float, default=1.0, help="Grid bins per action dimension (adaptive)")
 
     # environment options
