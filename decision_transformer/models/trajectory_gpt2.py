@@ -311,7 +311,7 @@ class Attention(nn.Module):
         self.actions = self.actions.to(w.device)
         
         # Process batch with EWA and get attraction matrix
-        D_kernels, D_trajectories = self.ewa.process_batch(self.actions, self.rewards)
+        D_codebooks, D_trajectories = self.ewa.process_batch(self.actions, self.rewards)
         attr = self.ewa.get_attraction(D_trajectories, self.rewards).to(w.device)  # (B, H, L, 1)
         _, _, _, action_indices = self.ewa._extract_dimensions(self.rewards)
 

@@ -145,15 +145,13 @@ def generate_grid_table_offline(action_dim, grid_bins, num_codes, device="cuda",
         for coords in coords_list:
             action = EWAVQ._grid_coords_to_action_static(coords, grid_bins, device)
             actions_batch.append(action)
-        
         actions_batch = torch.stack(actions_batch)
-        
+
         # Vectorized nearest neighbor search
         distances = torch.cdist(actions_batch, temp_codes)
         nearest_codes = torch.argmin(distances, dim=1)
-        
         grid_table[batch_start:batch_end] = nearest_codes
-        
+
         if batch_start % (grid_cells_batch_size * 10) == 0:
             print(f"Grid building progress: {batch_start}/{grid_size} ({batch_start/grid_size*100:.1f}%)")
     

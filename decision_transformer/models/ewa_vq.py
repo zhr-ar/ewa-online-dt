@@ -333,7 +333,7 @@ class EWAVQ:
             actions: tensor of shape (k, d) for one trajectory
             rewards: tensor of shape (k,) or (k, 1) for one trajectory
         Returns:
-            D_kernel: list of VQ codes with attractions (like clusters)
+            D_codebook: list of VQ codes with attractions (summary of used codes)
             D_trajectory: list of dicts with action info and attractions
         """
         # Extract actual sequence length from rewards (not actions)
@@ -357,7 +357,7 @@ class EWAVQ:
         
         # OPTIMIZATION: GPU-accelerated trajectory processing
         # Pre-allocate tensors on GPU for vectorized operations
-        D_kernel_tensor = torch.zeros(self.num_codes, device=self.device)
+        code_attraction = torch.zeros(self.num_codes, device=self.device)
         attraction_updates = torch.zeros(self.num_codes, device=self.device)
         code_usage_vec = torch.zeros(self.num_codes, dtype=torch.long, device=self.device)
         
@@ -372,11 +372,11 @@ class EWAVQ:
             r_t = rewards[t]
             
             # Decay all code attractions
-            D_kernel_tensor *= (1 - self.phi)
+            code_attraction *= (1 - self.phi)
             
             # Update attraction for the routed code only
             attraction_updates[code_idx] += self.delta * r_t
-            D_kernel_tensor += attraction_updates
+            code_attraction += attraction_updates
             attraction_updates[code_idx] = 0  # Reset for next iteration
 
             # Track usage for the routed code
@@ -391,27 +391,27 @@ class EWAVQ:
                 'a_t': actions[t].detach().cpu().numpy(),
                 'r_t': r_t.item(),
                 'code_idx': step_code_idx,
-                'A_t': D_kernel_tensor[code_idx].item(),
+                'A_t': code_attraction[code_idx].item(),
                 'code_usage': code_usage_vec[code_idx].item()
             })
 
             # # DEBUG: Print first few steps for verification (kept as requested)
-            # print(f"DEBUG EWA: Step {t}, Action: {actions[t].cpu().numpy()}, Code: {step_code_idx}, Reward: {r_t.item():.4f}, Attraction: {D_kernel_tensor[code_idx].item():.4f}")
+            # print(f"DEBUG EWA: Step {t}, Action: {actions[t].cpu().numpy()}, Code: {step_code_idx}, Reward: {r_t.item():.4f}, Attraction: {code_attraction[code_idx].item():.4f}")
 
-        # Build kernel list only for codes that were actually used (includes negative attractions)
-        D_kernel = []
+        # Build codebook summary only for codes that were actually used (includes negative attractions)
+        D_codebook = []
         used_code_indices = torch.nonzero(code_usage_vec > 0, as_tuple=False).view(-1)
         for i in used_code_indices.tolist():
-            D_kernel.append({'code_idx': i, 'A': D_kernel_tensor[i]})
+            D_codebook.append({'code_idx': i, 'A': code_attraction[i]})
 
         # Track history using trajectory-based statistics
         avg_attraction = float(np.mean([step['A_t'] for step in D_trajectory])) if len(D_trajectory) > 0 else 0.0
         self.attraction_history.append(avg_attraction)
         self.code_usage_history.append(int((code_usage_vec > 0).sum().item()))
         self.reward_history.append(float(np.mean(trajectory_rewards)) if len(trajectory_rewards) > 0 else 0.0)
-        # print(f"\nD_kernel: {D_kernel}")
+        # print(f"\nD_codebook: {D_codebook}")
         # print(f"\nD_trajectory: {D_trajectory}")
-        return D_kernel, D_trajectory
+        return D_codebook, D_trajectory
 
     def process_batch(self, actions, rewards):
         """
@@ -420,20 +420,20 @@ class EWAVQ:
             actions: tensor of shape (B, k, d)
             rewards: tensor of shape (B, k) or (B, k, 1)
         Returns:
-            D_kernels: list of D_kernel for each trajectory
+            D_codebooks: list of D_codebook for each trajectory
             D_trajectories: list of D_trajectory for each trajectory
         """
         # Extract dimensions dynamically
         batch_size, num_action_tokens, tuple_seq_length, action_indices = self._extract_dimensions(rewards)
         
-        D_kernels = []
+        D_codebooks = []
         D_trajectories = []
         
         for b in range(batch_size):
-            D_kernel, D_trajectory = self.process_trajectory(actions[b], rewards[b])
-            D_kernels.append(D_kernel)
+            D_codebook, D_trajectory = self.process_trajectory(actions[b], rewards[b])
+            D_codebooks.append(D_codebook)
             D_trajectories.append(D_trajectory)
-        return D_kernels, D_trajectories
+        return D_codebooks, D_trajectories
 
     def get_attraction(self, D_trajectories, rewards):
         """

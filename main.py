@@ -32,6 +32,7 @@ from evaluation import create_vec_eval_episodes_fn, vec_evaluate_episode_rtg
 from trainer import SequenceTrainer
 from logger import Logger
 import os
+from datetime import datetime
 
 cwd = os.getcwd()
 
@@ -233,6 +234,11 @@ class Experiment:
 
     def pretrain(self, eval_envs, loss_fn):
         print("\n\n\n*** Pretrain ***")
+        print(f"Starting pretraining at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        print(f"Max pretrain iterations: {self.variant['max_pretrain_iters']}")
+        print(f"Batch size: {self.variant['batch_size']}")
+        print(f"Device: {self.device}")
+        print("-" * 50)
 
         eval_fns = [
             create_vec_eval_episodes_fn(
@@ -496,7 +502,9 @@ class Experiment:
             print(f"Generated the fixed target goal: {target_goal}")
         else:
             target_goal = None
-        eval_envs = SubprocVecEnv(
+        # eval_envs = SubprocVecEnv(
+        from stable_baselines3.common.vec_env import DummyVecEnv
+        eval_envs = DummyVecEnv(
             [
                 get_env_builder(i, env_name=env_name, target_goal=target_goal)
                 for i in range(self.variant["num_eval_episodes"]) # THIS SETS num_envs, batch size in evaluation
@@ -509,7 +517,8 @@ class Experiment:
 
         if self.variant["max_online_iters"]:
             print("\n\nMaking Online Env.....")
-            online_envs = SubprocVecEnv(
+            # online_envs = SubprocVecEnv(
+            online_envs = DummyVecEnv(
                 [
                     get_env_builder(i + 100, env_name=env_name, target_goal=target_goal)
                     for i in range(self.variant["num_online_rollouts"])
