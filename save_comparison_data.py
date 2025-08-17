@@ -8,45 +8,55 @@ import pytz
 # Set timezone to US Eastern Timezone
 us_eastern = pytz.timezone('US/Eastern')
 
-# path to old experiments
-# path to EWA results with "max_online_iters": 30, "beta": 1.0, decay_ratio; which is promising
-ewa_base_paths_max_online_iters_30_beta_1_0 = [
-    "/home/ubuntu/online_decision_transformer/ewa-online-dt-main/exp/2025.03.21"
-]
-# path to EWA results with "max_online_iters": 30, "beta": 2.0, decay_ratio; which is NOT promising
-ewa_base_paths_max_online_iters_30_beta_2_0 = [
-    "/home/ubuntu/online_decision_transformer/ewa-online-dt-main/exp/2025.03.22",
-    "/home/ubuntu/online_decision_transformer/ewa-online-dt-main/exp/2025.03.23"
-]
+# # path to old experiments
+# # path to EWA results with "max_online_iters": 30, "beta": 1.0, decay_ratio; which is promising
+# ewa_base_paths_max_online_iters_30_beta_1_0 = [
+#     "/home/ubuntu/online_decision_transformer/ewa-online-dt-main/exp/2025.03.21"
+# ]
+# # path to EWA results with "max_online_iters": 30, "beta": 2.0, decay_ratio; which is NOT promising
+# ewa_base_paths_max_online_iters_30_beta_2_0 = [
+#     "/home/ubuntu/online_decision_transformer/ewa-online-dt-main/exp/2025.03.22",
+#     "/home/ubuntu/online_decision_transformer/ewa-online-dt-main/exp/2025.03.23"
+# ]
 
-# path to ODT results with "max_online_iters": 30
-odt_base_paths_max_online_iters_30 = [
-    "/home/ubuntu/online_decision_transformer/online-dt-main/exp/2025.03.21",
-    "/home/ubuntu/online_decision_transformer/online-dt-main/exp/2025.03.22"
-]
+# # path to ODT results with "max_online_iters": 30
+# odt_base_paths_max_online_iters_30 = [
+#     "/home/ubuntu/online_decision_transformer/online-dt-main/exp/2025.03.21",
+#     "/home/ubuntu/online_decision_transformer/online-dt-main/exp/2025.03.22"
+# ]
 
 ########################################################
 # new experiments
 ########################################################
 
-# path to EWA results with "max_online_iters": 100, "beta": 1.0, decay_ratio
-ewa_base_paths = [
-    "/home/ubuntu/online_decision_transformer/ewa-online-dt-main/exp/2025.03.25",
-    "/home/ubuntu/online_decision_transformer/ewa-online-dt-main/exp/2025.03.26",
-    "/home/ubuntu/online_decision_transformer/ewa-online-dt-main/exp/2025.03.27",
-    "/home/ubuntu/online_decision_transformer/ewa-online-dt-main/exp/2025.03.28"
+ewa_base_paths_max_online_iters_10 = [
+    "/home/ubuntu/online_decision_transformer/ewa-online-dt-main/exp/2025.08.09"
 ]
+ewa_base_paths = ewa_base_paths_max_online_iters_10
 
-# path to ODT results with "max_online_iters": 100
-odt_base_paths = [
-    "/home/ubuntu/online_decision_transformer/online-dt-main/exp/2025.03.30",
-    "/home/ubuntu/online_decision_transformer/online-dt-main/exp/2025.03.31",
-    "/home/ubuntu/online_decision_transformer/online-dt-main/exp/2025.04.01"
+odt_base_paths_max_online_iters_10 = [
+    "/home/ubuntu/online_decision_transformer/online-dt-main/exp/2025.08.10"
 ]
+odt_base_paths = odt_base_paths_max_online_iters_10
+
+# # path to EWA results with "max_online_iters": 100, "beta": 1.0, decay_ratio
+# ewa_base_paths = [
+#     "/home/ubuntu/online_decision_transformer/ewa-online-dt-main/exp/2025.03.25",
+#     "/home/ubuntu/online_decision_transformer/ewa-online-dt-main/exp/2025.03.26",
+#     "/home/ubuntu/online_decision_transformer/ewa-online-dt-main/exp/2025.03.27",
+#     "/home/ubuntu/online_decision_transformer/ewa-online-dt-main/exp/2025.03.28"
+# ]
+
+# # path to ODT results with "max_online_iters": 100
+# odt_base_paths = [
+#     "/home/ubuntu/online_decision_transformer/online-dt-main/exp/2025.03.30",
+#     "/home/ubuntu/online_decision_transformer/online-dt-main/exp/2025.03.31",
+#     "/home/ubuntu/online_decision_transformer/online-dt-main/exp/2025.04.01"
+# ]
 
 # Define environments and their corresponding folders
 envs = {
-    "halfcheetah-medium-expert-v2": [],
+    # "halfcheetah-medium-expert-v2": [],
     "walker2d-medium-replay-v2": [],
     "hopper-medium-v2": []
 }
