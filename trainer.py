@@ -50,8 +50,8 @@ class SequenceTrainer:
             if i < 10:
                 print(f"**** Trainer: Batch {i+1}/{total_batches}: loss={loss:.4f}, nll={nll:.4f}, entropy={entropy:.4f}")
             
-            # Print progress every 10% of batches for debugging
-            if (i + 1) % max(1, total_batches // 10) == 0:
+            # Print progress every 1% of batches for debugging
+            if (i + 1) % max(1, total_batches // 100) == 0:
                 print(f"**** Trainer: Progress: {i+1}/{total_batches} batches ({(i+1)/total_batches*100:.1f}%)")
                 print(f"**** Trainer: Current loss: {loss:.4f}, nll: {nll:.4f}, entropy: {entropy:.4f}")
             

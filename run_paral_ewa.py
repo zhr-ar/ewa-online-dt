@@ -1,6 +1,7 @@
 import os
 import subprocess
 import json
+import time
 from datetime import datetime
 import pytz
 from logger import Logger
@@ -44,14 +45,14 @@ ENV_CONFIG = {
 experiments = []
 
 # Add experiment for max_iters=20 
-for seed in range(4, 6):  # 5 seeds
+for seed in range(1, 5):  # 4 seeds
     experiments.append({
         "exp_name": exp_name,
         "name_run": "normalized_return_vs_steps_20iter",
         "max_online_iters": 20,
         "num_updates_per_online_iter": 100,
         "eval_interval": 2,
-        "envs": ["hopper-medium-v2", "walker2d-medium-replay-v2"],  # Removed halfcheetah (6D)
+        "envs": ["walker2d-medium-replay-v2"],  # Removed halfcheetah (6D) and "hopper-medium-v2"
         "seed": seed,
         **EWA_CONFIG  # Unpack EWA parameters
     })
@@ -105,33 +106,33 @@ def run_experiment(run_config):
         env_config = ENV_CONFIG[env]
         
         # Construct command
-        command = (
-            f"{base_command} --env {env} "
-            f"--max_online_iters {run_config['max_online_iters']} "
-            f"--eval_interval {run_config['eval_interval']} "
-            f"--seed {run_config['seed']} "
-            f"--exp_name {run_config['exp_name']} "
-            f"--online_rtg {env_config['online_rtg']} "
-            f"--eval_rtg {env_config['eval_rtg']} "
-            f"--eval_context_length {env_config['eval_context_length']} "
-            f"--ordering {env_config['ordering']} "
-            f"--beta {run_config['beta']} "
-            f"--phi {run_config['phi']} "
-            f"--delta {run_config['delta']} "
-            f"--trajectory_length {run_config['trajectory_length']} "
-            f"--num_codes {run_config['num_codes']} "
-            f"--grid_bins_factor {run_config['grid_bins_factor']} "
-        )
+        command = [
+            "python", "main.py",
+            "--env", env,
+            "--max_online_iters", str(run_config['max_online_iters']),
+            "--eval_interval", str(run_config['eval_interval']),
+            "--seed", str(run_config['seed']),
+            "--exp_name", run_config['exp_name'],
+            "--online_rtg", str(env_config['online_rtg']),
+            "--eval_rtg", str(env_config['eval_rtg']),
+            "--eval_context_length", str(env_config['eval_context_length']),
+            "--ordering", str(env_config['ordering']),
+            "--beta", str(run_config['beta']),
+            "--phi", str(run_config['phi']),
+            "--delta", str(run_config['delta']),
+            "--trajectory_length", str(run_config['trajectory_length']),
+            "--num_codes", str(run_config['num_codes']),
+            "--grid_bins_factor", str(run_config['grid_bins_factor']),
+        ]
         
         if "num_updates_per_online_iter" in run_config:
-            command += f"--num_updates_per_online_iter {run_config['num_updates_per_online_iter']} "
+            command.extend(["--num_updates_per_online_iter", str(run_config['num_updates_per_online_iter'])])
         if "num_online_rollouts" in run_config:
-            command += f"--num_online_rollouts {run_config['num_online_rollouts']} "
+            command.extend(["--num_online_rollouts", str(run_config['num_online_rollouts'])])
         
         # Run experiment and log results
-        print(f"Running: {command}")
+        print(f"Running: {' '.join(command)}")
         print(f"Starting experiment at {datetime.now(tz=us_eastern).strftime('%Y-%m-%d %H:%M:%S')}")
-        # print(f"Log file: {log_path}")
         print("-" * 80)
         
         # Get the path of the folder created by logger.py
@@ -148,55 +149,31 @@ def run_experiment(run_config):
         # Run command and save output to log.txt while also showing in terminal
         log_path = os.path.join(info_folder, "log.txt")
         
-        # Improved approach: run with real-time output and proper buffering
-        def run_with_output(command, log_file):
+        # Use the clean approach from run_quick1_ewa.py
+        env_vars = os.environ.copy()
+        env_vars["PYTHONUNBUFFERED"] = "1"
+        
+        with open(log_path, "w") as log_file:
             process = subprocess.Popen(
                 command,
-                shell=True,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
-                bufsize=0,  # No buffering
-                universal_newlines=True
+                bufsize=1,
+                env=env_vars
             )
             
-            # Set up non-blocking output reading
-            import select
-            import sys
+            last = time.time()
+            for line in process.stdout:
+                print(line, end="")
+                log_file.write(line)
+                log_file.flush()
+                if time.time() - last > 300:  # 5 minutes
+                    print(f"[{datetime.now().strftime('%H:%M:%S')}] Process still running...")
+                    last = time.time()
             
-            while True:
-                # Check if process is still running
-                if process.poll() is not None:
-                    # Read any remaining output
-                    remaining_output = process.stdout.read()
-                    if remaining_output:
-                        print(remaining_output, end='')
-                        log_file.write(remaining_output)
-                        log_file.flush()
-                    break
-                
-                # Use select to check if there's data to read (non-blocking)
-                if select.select([process.stdout], [], [], 0.1)[0]:
-                    output = process.stdout.readline()
-                    if output:
-                        print(output.rstrip())  # Print to terminal immediately
-                        log_file.write(output)  # Write to file
-                        log_file.flush()  # Ensure immediate writing
-                else:
-                    # No output available, but process is still running
-                    # Print a progress indicator every 60 seconds
-                    import time
-                    if not hasattr(run_with_output, 'last_progress'):
-                        run_with_output.last_progress = time.time()
-                    
-                    if time.time() - run_with_output.last_progress > 360:
-                        print(f"[{datetime.now().strftime('%H:%M:%S')}] Process still running...")
-                        run_with_output.last_progress = time.time()
-            
-            return process.poll()
-        
-        with open(log_path, "w") as log_file:
-            return_code = run_with_output(command, log_file)
+            process.wait()
+            return_code = process.returncode
         
         # Check if process failed
         if return_code != 0:
