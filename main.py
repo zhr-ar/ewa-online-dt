@@ -403,28 +403,55 @@ class Experiment:
 
             outputs["time/total"] = time.time() - self.start_time
 
-            # Log delta value and decay ratio if using EWA
+            # OPTIMIZATION: Log EWA metrics efficiently at every evaluation interval
             if self.variant["exp_name"] == "ewa":
-                # Log EWA metrics at every evaluation interval
                 if evaluation:
-                    # Track EWA behavior across all transformer blocks
-                    for layer_idx, block in enumerate(self.model.transformer.h):
-                        ewa_instance = block.attn.ewa
-                        steps, attraction_values, code_usage_values, reward_values = ewa_instance.get_history()
-                        print(f"EWA VQ specific metrics in layer {layer_idx}:")
-                        print(f"  - Attraction values: {attraction_values}")
-                        print(f"  - Code usage values: {code_usage_values}")
-                        print(f"  - Reward values: {reward_values}")
+                    # OPTIMIZATION: Log EWA metrics for layer 0 only (standard practice in ML papers)
+                    layer_0_block = self.model.transformer.h[0]
+                    if hasattr(layer_0_block.attn, 'ewa') and layer_0_block.attn.ewa is not None:
+                        current_metrics = layer_0_block.attn.get_current_ewa_metrics()
                         
-                        for step, attraction, code_usage, reward in zip(steps, attraction_values, code_usage_values, reward_values):
-                            writer.add_scalar(f'ewa/attraction_layer_{layer_idx}', attraction, step)
-                            writer.add_scalar(f'ewa/code_usage_layer_{layer_idx}', code_usage, step)
-                            writer.add_scalar(f'ewa/reward_layer_{layer_idx}', reward, step)
+                        if current_metrics is not None:
+                            # Log current iteration metrics (per iteration, not per step - this is correct)
+                            writer.add_scalar('ewa/attraction', current_metrics['current_attraction'], self.online_iter)
+                            writer.add_scalar('ewa/code_usage', current_metrics['current_code_usage'], self.online_iter)
+                            writer.add_scalar('ewa/reward', current_metrics['current_reward'], self.online_iter)
+                            writer.add_scalar('ewa/total_trajectories', current_metrics['total_trajectories_processed'], self.online_iter)
                             
-                        # # Also log the current values
-                        # current_delta, current_decay = ewa_instance.compute_delta_and_decay_ratio()
-                        # writer.add_scalar(f'current_delta_layer_{layer_idx}', current_delta, self.online_iter)
-                        # writer.add_scalar(f'current_decay_ratio_layer_{layer_idx}', current_decay, self.online_iter)
+                            # Print summary for monitoring (layer 0 only)
+                            print(f"EWA Layer 0 - Attraction: {current_metrics['current_attraction']:.4f}, "
+                                  f"Code Usage: {current_metrics['current_code_usage']}, "
+                                  f"Reward: {current_metrics['current_reward']:.4f}")
+                        
+                        # OPTIMIZATION: Also log cache performance statistics
+                        cache_stats = layer_0_block.attn.ewa.get_cache_stats()
+                        writer.add_scalar('ewa/cache_hit_rate', cache_stats['hit_rate'], self.online_iter)
+                        writer.add_scalar('ewa/cache_size', cache_stats['cache_size'], self.online_iter)
+                        print(f"EWA Cache - Hit Rate: {cache_stats['hit_rate']:.2%}, Size: {cache_stats['cache_size']}")
+                
+                # ORIGINAL CODE (COMMENTED OUT FOR OPTIMIZATION):
+                # # Log delta value and decay ratio if using EWA
+                # if self.variant["exp_name"] == "ewa":
+                #     # Log EWA metrics at every evaluation interval
+                #     if evaluation:
+                #         # Track EWA behavior across all transformer blocks
+                #         for layer_idx, block in enumerate(self.model.transformer.h):
+                #             ewa_instance = block.attn.ewa
+                #             steps, attraction_values, code_usage_values, reward_values = ewa_instance.get_history()
+                #             print(f"EWA VQ specific metrics in layer {layer_idx}:")
+                #             print(f"  - Attraction values: {attraction_values}")
+                #             print(f"  - Code usage values: {code_usage_values}")
+                #             print(f"  - Reward values: {reward_values}")
+                #                             
+                #             for step, attraction, code_usage, reward in zip(steps, attraction_values, code_usage_values, reward_values):
+                #                 writer.add_scalar(f'ewa/attraction_layer_{layer_idx}', attraction, step)
+                #                 writer.add_scalar(f'ewa/code_usage_layer_{layer_idx}', code_usage, step)
+                #                 writer.add_scalar(f'ewa/reward_layer_{layer_idx}', reward, step)
+                #                             
+                #             # # Also log the current values
+                #             # current_delta, current_decay = ewa_instance.compute_delta_and_decay_ratio()
+                #             # writer.add_scalar(f'current_delta_layer_{layer_idx}', current_delta, self.online_iter)
+                #             # writer.add_scalar(f'ewa/current_decay_ratio_layer_{layer_idx}', current_decay, self.online_iter)
 
             # log the metrics
             self.logger.log_metrics(

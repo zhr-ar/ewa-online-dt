@@ -1,6 +1,7 @@
 import os
 import subprocess
 import json
+import time
 from datetime import datetime
 import pytz
 from logger import Logger
@@ -148,58 +149,32 @@ def run_experiment(run_config):
         # Run command and save output to log.txt while also showing in terminal
         log_path = os.path.join(info_folder, "log.txt")
         
-        # Improved approach: run with real-time output and proper buffering
-        def run_with_output(command, log_file):
-            env = os.environ.copy()
-            env["PYTHONUNBUFFERED"] = "1"
+        # Use the clean approach from run_quick1_ewa.py
+        env = os.environ.copy()
+        env["PYTHONUNBUFFERED"] = "1"
+        
+        with open(log_path, "w") as log_file:
             process = subprocess.Popen(
                 command,
                 shell=True,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
-                bufsize=0,  # No buffering
-                universal_newlines=True,
+                bufsize=1,
                 env=env
             )
             
-            # Set up non-blocking output reading
-            import select
-            import sys
+            last = time.time()
+            for line in process.stdout:
+                print(line, end="")
+                log_file.write(line)
+                log_file.flush()
+                if time.time() - last > 300:  # 5 minutes
+                    print(f"[{datetime.now().strftime('%H:%M:%S')}] Process still running...")
+                    last = time.time()
             
-            while True:
-                # Check if process is still running
-                if process.poll() is not None:
-                    # Read any remaining output
-                    remaining_output = process.stdout.read()
-                    if remaining_output:
-                        print(remaining_output, end='')
-                        log_file.write(remaining_output)
-                        log_file.flush()
-                    break
-                
-                # Use select to check if there's data to read (non-blocking)
-                if select.select([process.stdout], [], [], 0.1)[0]:
-                    output = process.stdout.readline()
-                    if output:
-                        print(output.rstrip())  # Print to terminal immediately
-                        log_file.write(output)  # Write to file
-                        log_file.flush()  # Ensure immediate writing
-                else:
-                    # No output available, but process is still running
-                    # Print a progress indicator every 60 seconds
-                    import time
-                    if not hasattr(run_with_output, 'last_progress'):
-                        run_with_output.last_progress = time.time()
-                    
-                    if time.time() - run_with_output.last_progress > 360:
-                        print(f"[{datetime.now().strftime('%H:%M:%S')}] Process still running...")
-                        run_with_output.last_progress = time.time()
-            
-            return process.poll()
-        
-        with open(log_path, "w") as log_file:
-            return_code = run_with_output(command, log_file)
+            process.wait()
+            return_code = process.returncode
         
         # Check if process failed
         if return_code != 0:
