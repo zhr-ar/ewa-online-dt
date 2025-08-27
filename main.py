@@ -598,12 +598,16 @@ if __name__ == "__main__":
     parser.add_argument("--eval_interval", type=int, default=10)
     # EWA number of online samples = max_online_iters * num_online_rollouts * num_updates_per_online_iter * batch_size
 
-    # EWA specific options
-    parser.add_argument("--beta", type=float, default=0.05, help="Scaling factor for EWA attention weights")
+    # PQ-EWA specific options
+    parser.add_argument("--num_subspaces", type=int, default=None, help="Number of subspaces for PQ-EWA (auto-determined if None)")
+    parser.add_argument("--codes_per_subspace", type=int, default=None, help="Codes per subspace for PQ-EWA (auto-determined for full coverage if None)")
+    parser.add_argument("--grid_bins", type=int, default=3, help="Grid bins per dimension for PQ-EWA quantization (default: 3)")
+    parser.add_argument("--max_subspaces", type=int, default=4, help="Maximum number of subspaces for PQ-EWA (default: 4)")
     parser.add_argument("--phi", type=float, default=0.05, help="How fast old attractions fade")
     parser.add_argument("--delta", type=float, default=0.8, help="Delta value for EWA")
-    parser.add_argument("--trajectory_length", type=int, default=1000, help="Maximum trajectory length for EWA")
-    parser.add_argument("--disable_ewa", action="store_true", help="Disable EWA processing entirely for testing")
+    parser.add_argument("--beta", type=float, default=0.05, help="Scaling factor for EWA attention weights")
+    
+    # Legacy EWA options (kept for backward compatibility)
     parser.add_argument("--num_codes", type=int, default=None, help="Number of VQ codes for EWA (default: use all grid cells)")
     parser.add_argument("--grid_bins_factor", type=float, default=1.0, help="Grid bins per action dimension (adaptive)")
 

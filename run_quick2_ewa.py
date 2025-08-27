@@ -15,13 +15,15 @@ common_args = [
     "--online_rtg", "10000",
     "--eval_rtg", "5000",
     "--exp_name", "ewa",
-    # EWA params
+    # EWA VQ PQ params (NEW IMPLEMENTATION)
     "--beta", "0.05",
     "--phi", "0.05",
     "--delta", "0.8",
-    "--trajectory_length", "1000",
-    "--num_codes", "27",
-    "--grid_bins_factor", "1.0",
+    # "--trajectory_length", "1000",
+    # PQ-EWA specific parameters
+    # Note: num_subspaces and codes_per_subspace are auto-determined (not passed as arguments)
+    "--grid_bins", "3",                # Grid bins per dimension
+    "--max_subspaces", "4",            # Maximum subspaces
     "--device", "cuda",
 ]
 

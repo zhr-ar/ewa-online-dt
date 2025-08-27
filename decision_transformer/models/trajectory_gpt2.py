@@ -45,9 +45,14 @@ from transformers.utils import logging
 from transformers.utils.model_parallel_utils import assert_device_map, get_device_map
 from transformers.models.gpt2.configuration_gpt2 import GPT2Config
 
-# OPTIMIZATION: Import the optimized EWAVQ instead of the original
+# OPTIMIZATION: Import the Product Quantization (PQ) based EWAVQ
 # from decision_transformer.models.ewa_vq import EWAVQ
-from decision_transformer.models.ewa_vq_optimized import EWAVQOptimized
+# from decision_transformer.models.ewa_vq_optimized import EWAVQOptimized
+from decision_transformer.models.ewa_vq_pq import EWAVQProductQuantization
+
+# OPTIMIZATION: Use the OPTIMIZED PQ-based EWAVQ for better performance
+# from decision_transformer.models.ewa_vq_pq_optimized import EWAVQProductQuantizationOptimized
+
 import numpy as np
 from logger import Logger
 from pathlib import Path
@@ -250,7 +255,7 @@ class Attention(nn.Module):
         if self.ewa_initialized:
             return
             
-        print(f"\n*** Initializing OPTIMIZED EWAVQ with num_heads={num_heads}, tuple_seq_length={tuple_seq_length} ***")
+        # print(f"\n*** Initializing PQ-EWAVQ with num_heads={num_heads}, tuple_seq_length={tuple_seq_length} ***")
         
         # Calculate adaptive grid_bins based on action dimension
         action_dim = self.actions.shape[-1] if hasattr(self, 'actions') and self.actions is not None else 6
@@ -281,21 +286,36 @@ class Attention(nn.Module):
         # Ensure we don't exceed the total number of grid cells
         num_codes = min(num_codes, total_grid_cells)
         
-        # OPTIMIZATION: Use the OPTIMIZED EWAVQ class instead of the original
-        self.ewa = EWAVQOptimized(
+        # DEBUG: Print PQ setup details
+        # print(f"🔧 PQ Setup Details:")
+        # print(f"   Action dimension: {action_dim}")
+        # print(f"   Grid bins factor: {grid_bins_factor}")
+        # print(f"   Adjusted grid bins: {adjusted_grid_bins_factor}")
+        # print(f"   Adaptive grid bins: {adaptive_grid_bins}")
+        # print(f"   Total grid cells: {total_grid_cells}")
+        # print(f"   Max reasonable codes: {max_reasonable_codes}")
+        # print(f"   Default num codes: {default_num_codes}")
+        # print(f"   Final num codes: {num_codes}")
+        
+        # OPTIMIZATION: Use the Product Quantization (PQ) based EWAVQ class
+        self.ewa = EWAVQProductQuantization(
             num_heads=num_heads,
             tuple_seq_length=tuple_seq_length,
             phi=self.variant["phi"],
             delta=self.variant["delta"],
-            num_codes=num_codes,
-            grid_bins=adaptive_grid_bins
+            # num_codes=num_codes,
+            # grid_bins=adaptive_grid_bins
+            action_dim=action_dim,
+            num_subspaces=self.variant.get("num_subspaces", None),  # From variant or auto-determine
+            codes_per_subspace=self.variant.get("codes_per_subspace", None),  # From variant or auto-determine
+            grid_bins=self.variant.get("grid_bins", 3),  # From variant or default to 3
+            max_subspaces=self.variant.get("max_subspaces", 4)  # From variant or default to 4
         )
         
         # Pass variant to EWAVQ for environment name access
         self.ewa.variant = self.variant
         self.ewa_initialized = True
         
-        print(f"✓ OPTIMIZED EWAVQ initialized successfully!")
 
     # OPTIMIZATION: Cached attraction method
     def _get_cached_attraction(self, actions, rewards):
@@ -365,56 +385,7 @@ class Attention(nn.Module):
             hasattr(self, 'rewards')):
             
             self._initialize_ewa_lazy(num_heads, tuple_seq_length)
-        
-        # ORIGINAL CODE (COMMENTED OUT FOR OPTIMIZATION):
-        # # Initialize EWA with dynamic values from attention weights shape
-        # if not self.is_cross_attention and not self.ewa_initialized:
-        #     print(f"\n*** Initializing EWAVQ with num_heads={num_heads}, tuple_seq_length={tuple_seq_length} ***")
-        #     
-        #     # Calculate adaptive grid_bins based on action dimension
-        #     action_dim = self.actions.shape[-1] if hasattr(self, 'actions') and self.actions is not None else 6  # Default for halfcheetah
-        #     grid_bins_factor = self.variant.get("grid_bins_factor", 1.0)
-        #     
-        #     # For high-dimensional environments, use smaller grid_bins_factor automatically
-        #     if action_dim > 6:
-        #         # Use smaller grid_bins_factor for high-dimensional environments
-        #         adjusted_grid_bins_factor = min(grid_bins_factor, 0.5)
-        #     else:
-        #         adjusted_grid_bins_factor = grid_bins_factor
-        #     
-        #     adaptive_grid_bins = max(2, min(8, int(adjusted_grid_bins_factor * action_dim)))
-        #     
-        #     # Automatically determine number of codes based on grid size
-        #     total_grid_cells = adaptive_grid_bins ** action_dim
-        #     
-        #     # Safety check: limit grid size for high-dimensional environments
-        #     max_reasonable_codes = 36  # Fixed maximum for consistent behavior across environments
-        #     if total_grid_cells > max_reasonable_codes:
-        #         default_num_codes = max_reasonable_codes
-        #     else:
-        #         default_num_codes = total_grid_cells
-        #     
-        #     # Use calculated default, but allow override via num_codes parameter
-        #     # If num_codes is None or not specified, use the calculated default
-        #     num_codes = self.variant.get("num_codes")
-        #     if num_codes is None:
-        #         num_codes = default_num_codes
-        #     # Ensure we don't exceed the total number of grid cells
-        #     num_codes = min(num_codes, total_grid_cells)
-        #     
-        #     self.ewa = EWAVQ(
-        #         num_heads=num_heads,
-        #         tuple_seq_length=tuple_seq_length,
-        #         phi=self.variant["phi"],
-        #         delta=self.variant["delta"],
-        #         num_codes=num_codes,  # Use all grid cells
-        #         grid_bins=adaptive_grid_bins  # Adaptive grid bins
-        #     )
-        #     # Pass variant to EWAVQ for environment name access
-        #     self.ewa.variant = self.variant
-        #     self.ewa_initialized = True
-
-        
+       
         # OPTIMIZATION: Enhanced EWA processing with caching and memory management
         if (not self.is_cross_attention and 
             self.ewa_initialized and
@@ -425,14 +396,20 @@ class Attention(nn.Module):
             self.rewards.shape[0] > 1 and  # Safety check: ensure we have proper trajectory data
             self.actions.shape[0] > 1):
             
-            # Debug: print shapes to understand what we're working with
-            if hasattr(self, '_debug_printed') and not self._debug_printed:
-                print(f"EWA Debug - rewards shape: {self.rewards.shape}, actions shape: {self.actions.shape}")
-                self._debug_printed = True
+
+            # print(f"EWA Debug - rewards shape: {self.rewards.shape}, actions shape: {self.actions.shape}")
             
             # Ensure rewards and actions are on the same device as w
             self.rewards = self.rewards.to(w.device)
             self.actions = self.actions.to(w.device)
+            
+            # DEBUG: Print for first two batches only
+            # if not hasattr(self, '_debug_batch_count'):
+            #     self._debug_batch_count = 0
+            # if self._debug_batch_count < 2:
+            #     print(f"\n🧠 ATTENTION DEBUG - Batch {self._debug_batch_count + 1}")
+            #     print(f"   Attention weights shape: {w.shape}")
+            #     print(f"   Attention weights before EWA - min: {w.min().item():.4f}, max: {w.max().item():.4f}, mean: {w.mean().item():.4f}")
             
             # OPTIMIZATION: Use cached attraction values when possible
             attr = self._get_cached_attraction(self.actions, self.rewards)
@@ -443,44 +420,34 @@ class Attention(nn.Module):
             
             beta = self.variant["beta"]
             
+
+            # print(f"   Attraction matrix shape: {attr.shape}")
+            # print(f"   Attraction values - min: {attr.min().item():.4f}, max: {attr.max().item():.4f}, mean: {attr.mean().item():.4f}")
+            # print(f"   Beta value: {beta}")
+            # print(f"   Attraction values - min: {attr.min().item():.4f}, max: {attr.max().item():.4f}, mean: {attr.mean().item():.4f}")
+            # print(f"   Beta value: {beta}")
+            # print(f"   Action token indices: {action_indices.cpu().numpy()}")
+            
             # w shape: (batch_size, num_heads, seq_len, seq_len)
             # attr shape: (batch_size, num_heads, seq_len, 1)
             # Apply attraction to attention weights at action token indices
             for a_ind in action_indices:
                 a_val = attr[:, :, a_ind, :]
                 a_val_expanded = a_val.expand(-1, -1, w.size(2))
+                
+                
+                # print(f"   Applying attraction at action index {a_ind}:")
+                # print(f"     Attraction value: {a_val.mean().item():.4f}")
+                # print(f"     Beta * attraction: {beta * a_val.mean().item():.4f}")
+                
                 w[:, :, :, a_ind] += beta * a_val_expanded
-        
-        # ORIGINAL CODE (COMMENTED OUT FOR OPTIMIZATION):
-        # # EWA: Apply EWA to attention weights of action tokens
-        # if not hasattr(self, "rewards") or self.rewards is None:
-        #     raise ValueError("Error: rewards are not set in `Attention` class before calling `_attn()`!")
-        # if not hasattr(self, "actions") or self.actions is None:
-        #     raise ValueError("Error: actions are not set in `Attention` class before calling `_attn()`!")
-        # 
-        # # Ensure rewards and actions are on the same device as w
-        # self.rewards = self.rewards.to(w.device)
-        # self.actions = self.actions.to(w.device)
-        # 
-        # # Process batch with EWA and get attraction matrix
-        # D_codebooks, D_trajectories = self.ewa.process_batch(self.actions, self.rewards)
-        # attr = self.ewa.get_attraction(D_trajectories, self.rewards).to(w.device)  # (B, H, L, 1)
-        # _, _, _, action_indices = self.ewa._extract_dimensions(self.rewards)
-        # 
-        # if attr.shape[0] != w.shape[0]:
-        #     raise ValueError(f"Batch size mismatch! attr has {attr.shape[0]}, expected {w.shape[0]}")
-        # 
-        # 
-        # beta = self.variant["beta"]
-        # 
-        # # w shape: (batch_size, num_heads, seq_len, seq_len)
-        # # attr shape: (batch_size, num_heads, seq_len, 1)
-        # # Apply attraction to attention weights at action token indices
-        # for a_ind in action_indices:
-        #     a_val = attr[:, :, a_ind, :]
-        #     a_val_expanded = a_val.expand(-1, -1, w.size(2))
-        #     print(f"*** Attr min/max/mean: {attr.min().item():.4f}/{attr.max().item():.4f}/{attr.mean().item():.4f}; Attn W  min/max/mean: {w.min().item():.4f}/{w.max().item():.4f}/{w.mean().item():.4f}")
-        #     w[:, :, :, a_ind] += beta * a_val_expanded
+                
+                
+                # print(f"     Attention weights after - min: {w[:, :, :, a_ind].min().item():.4f}, "
+                #       f"max: {w[:, :, :, a_ind].max().item():.4f}, mean: {w[:, :, :, a_ind].mean().item():.4f}")
+                
+            # print(f"   Attention weights after EWA - min: {w.min().item():.4f}, max: {w.max().item():.4f}, mean: {w.mean().item():.4f}")
+            
 
         # print(f"*** Attr min/max/mean: {attr.min().item():.4f}/{attr.max().item():.4f}/{attr.mean().item():.4f}; Attn W  min/max/mean: {w.min().item():.4f}/{w.max().item():.4f}/{w.mean().item():.4f}")
 
@@ -980,6 +947,7 @@ class GPT2Model(GPT2PreTrainedModel):
             output_hidden_states=None,
             return_dict=None,
     ):
+   
         # EWA Store rewards at the model level before passing through blocks
         if hasattr(self, "rewards"):
             self.rewards = self.rewards.to(self.device)
