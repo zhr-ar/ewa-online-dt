@@ -152,10 +152,10 @@ class EWAVQProductQuantization:
                 # Single subspace: use grid_bins^action_dim for full coverage
                 self.codes_per_subspace = self.grid_bins ** action_dim
             else:
-                # Multiple subspaces: for FULL COVERAGE, each subspace needs to cover the FULL action space
-                # This is because actions can have correlations across subspaces
-                # So each subspace needs grid_bins^action_dim codes for 100% coverage
-                self.codes_per_subspace = self.grid_bins ** action_dim
+                # Multiple subspaces: each subspace only needs to cover its own dimensions
+                # This is the correct Product Quantization approach
+                subspace_dim = action_dim // self.num_subspaces
+                self.codes_per_subspace = self.grid_bins ** subspace_dim
         else:
             self.codes_per_subspace = codes_per_subspace
         
