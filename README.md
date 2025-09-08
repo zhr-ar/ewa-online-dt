@@ -31,17 +31,6 @@ python run_quick2_ewa.py --env walker2d-medium-replay-v2
 
 Defaults (see scripts/args): `beta=0.05`, `phi=0.05`, `delta=0.8`, `codes=27`, context length `K∈{5,20}`.
 
-## Repo structure
-
-```
-.
-├─ docs/                      # anonymized paper & figures
-├─ ewa_vq_odt/                # core module (EWA update, VQ routing, attention bias)
-├─ scripts/                   # training / eval utilities
-├─ run_quick1_ewa.py          # quick Hopper run
-├─ run_quick2_ewa.py          # quick Walker2d run
-└─ requirements.txt
-```
 
 ## Citation (anonymized)
 
