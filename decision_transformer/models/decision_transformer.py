@@ -190,23 +190,10 @@ class DecisionTransformer(TrajectoryModel):
             self.log_temperature.requires_grad = True
             self.target_entropy = target_entropy
         
-        # Pre-generate grid tables for EWA if using EWA
+        # PQ-EWA handles its own codebook generation internally - no need for pre-generation
         if variant and variant.get("exp_name") == "ewa":
-            self._pre_generate_ewa_grid_tables()
-    
-    def _pre_generate_ewa_grid_tables(self):
-        """Pre-generate grid tables for EWA to avoid repeated generation during training."""
-        from generate_grid_tables import generate_grid_table_for_variant
-        
-        print(f"\n*** Pre-generating EWA grid tables for action_dim={self.act_dim} ***")
-        
-        # Pre-generate grid table using the exact same parameters as EWAVQ instances
-        grid_table = generate_grid_table_for_variant(self.variant, self.act_dim)
-        
-        if grid_table is not None:
-            print(f"✓ Grid table pre-generated and cached successfully!")
-        else:
-            print(f"⚠ Grid table generation failed, will use fallback routing")
+            print(f"\n*** Using PQ-EWA with action_dim={self.act_dim} ***")
+            print(f"   PQ-EWA will auto-generate codebooks during initialization")
 
     def temperature(self):
         if self.stochastic_policy:

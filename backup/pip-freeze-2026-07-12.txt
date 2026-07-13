@@ -2,9 +2,9 @@ absl-py==2.1.0
 asttokens==3.0.0
 astunparse==1.6.3
 cachetools==4.2.4
-certifi==2024.8.30
+certifi @ file:///home/conda/feedstock_root/build_artifacts/certifi_1725278078093/work/certifi
 cffi==1.17.1
-charset-normalizer==3.4.0
+charset-normalizer==3.4.2
 click==8.1.7
 cloudpickle==3.1.0
 colorama==0.4.6
@@ -50,7 +50,7 @@ mujoco-py==2.1.2.14
 numpy==1.21.6
 oauthlib==3.2.2
 opt-einsum==3.3.0
-packaging==24.2
+packaging @ file:///home/conda/feedstock_root/build_artifacts/packaging_1733203243479/work
 pandas==2.0.3
 Pillow==8.3.2
 protobuf==3.20.1
@@ -69,8 +69,8 @@ requests==2.32.3
 requests-oauthlib==2.0.0
 rsa==4.9
 sacremoses==0.1.1
-scipy==1.10.1
 scikit-learn==1.0.2
+scipy==1.10.1
 six==1.16.0
 stable-baselines3==1.1.0
 tensorboard==2.5.0

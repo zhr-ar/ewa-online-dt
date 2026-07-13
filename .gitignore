@@ -1,10 +1,17 @@
 exp/
 exp_results/
 data/
+figures_comparison/
+figures_ewa/
+normalized_returns/
+ewa_grid_cache/
+Cursor chat history/
+__pycache__/
 *.pt
 *.log
 *.pkl
 *.npy
+*.npz
 *.ckpt
-__pycache__/
 .DS_Store
+=1.21.0

@@ -40,7 +40,7 @@ class SequenceTrainer:
         total_batches = len(dataloader)
         print(f"\n**** Starting training iteration with {total_batches} batches")
         
-        for i, trajs in enumerate(dataloader):
+        for i, trajs in enumerate(dataloader):            
             loss, nll, entropy = self.train_step_stochastic(loss_fn, trajs)
             losses.append(loss)
             nlls.append(nll)

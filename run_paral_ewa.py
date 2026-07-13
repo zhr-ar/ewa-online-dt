@@ -19,9 +19,12 @@ EWA_CONFIG = {
     "beta": 0.05,
     "phi": 0.05,
     "delta": 0.8,
-    "trajectory_length": 1000,
-    "num_codes": 16,
-    "grid_bins_factor": 1.0,  # Adaptive: 1.0 bins per action dimension
+    
+    # PQ-EWA specific parameters (NEW IMPLEMENTATION)
+    "num_subspaces": None,         # Auto-determined
+    "codes_per_subspace": None,    # Auto-determined for full coverage
+    "grid_bins": 3,                # Grid bins per dimension
+    "max_subspaces": 4,            # Maximum subspaces
 }
 
 exp_name = "ewa" ## !!! manually specify odt or ewa !!!
@@ -120,10 +123,17 @@ def run_experiment(run_config):
             "--beta", str(run_config['beta']),
             "--phi", str(run_config['phi']),
             "--delta", str(run_config['delta']),
-            "--trajectory_length", str(run_config['trajectory_length']),
-            "--num_codes", str(run_config['num_codes']),
-            "--grid_bins_factor", str(run_config['grid_bins_factor']),
+            
+            # PQ-EWA specific parameters
+            "--grid_bins", str(run_config['grid_bins']),
+            "--max_subspaces", str(run_config['max_subspaces']),
         ]
+        
+        # Add optional parameters only if they have values
+        if run_config['num_subspaces'] is not None:
+            command.extend(["--num_subspaces", str(run_config['num_subspaces'])])
+        if run_config['codes_per_subspace'] is not None:
+            command.extend(["--codes_per_subspace", str(run_config['codes_per_subspace'])])
         
         if "num_updates_per_online_iter" in run_config:
             command.extend(["--num_updates_per_online_iter", str(run_config['num_updates_per_online_iter'])])

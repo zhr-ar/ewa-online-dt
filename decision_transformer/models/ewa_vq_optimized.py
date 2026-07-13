@@ -364,7 +364,6 @@ class EWAVQOptimized:
         trajectory_rewards = []
         
         for t in range(k):
-            print(f"t: {t}; rewards: {rewards}")
             code_idx = code_indices[t]
             r_t = rewards[t]
             

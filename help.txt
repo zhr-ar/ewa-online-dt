@@ -1,2 +1,0 @@
-pkill tensorboard
-tensorboard --logdir /home/ubuntu/online_decision_transformer/ewa-online-dt-main/exp/2025.02.19/223908-ewa/

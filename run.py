@@ -18,9 +18,12 @@ EWA_CONFIG = {
     "beta": 0.05,
     "phi": 0.05,
     "delta": 0.8,
-    "trajectory_length": 1000,
-    "num_codes": 16,
-    "grid_bins_factor": 1.0,  # Adaptive: 1.0 bins per action dimension
+    
+    # PQ-EWA specific parameters (NEW IMPLEMENTATION)
+    "num_subspaces": None,         # Auto-determined
+    "codes_per_subspace": None,    # Auto-determined for full coverage
+    "grid_bins": 3,                # Grid bins per dimension
+    "max_subspaces": 4,            # Maximum subspaces
 }
 
 exp_name = "ewa" ## !!! manually specify odt or ewa !!!
@@ -105,31 +108,41 @@ def run_experiment(run_config):
         env_config = ENV_CONFIG[env]
         
         # Construct command
-        command = (
-            f"{base_command} --env {env} "
-            f"--max_online_iters {run_config['max_online_iters']} "
-            f"--eval_interval {run_config['eval_interval']} "
-            f"--seed {run_config['seed']} "
-            f"--exp_name {run_config['exp_name']} "
-            f"--online_rtg {env_config['online_rtg']} "
-            f"--eval_rtg {env_config['eval_rtg']} "
-            f"--eval_context_length {env_config['eval_context_length']} "
-            f"--ordering {env_config['ordering']} "
-            f"--beta {run_config['beta']} "
-            f"--phi {run_config['phi']} "
-            f"--delta {run_config['delta']} "
-            f"--trajectory_length {run_config['trajectory_length']} "
-            f"--num_codes {run_config['num_codes']} "
-            f"--grid_bins_factor {run_config['grid_bins_factor']} "
-        )
+        command = [
+            "python", "main.py",
+            "--env", env,
+            "--max_online_iters", str(run_config['max_online_iters']),
+            "--eval_interval", str(run_config['eval_interval']),
+            "--seed", str(run_config['seed']),
+            "--exp_name", run_config['exp_name'],
+            "--online_rtg", str(env_config['online_rtg']),
+            "--eval_rtg", str(env_config['eval_rtg']),
+            "--eval_context_length", str(env_config['eval_context_length']),
+            "--ordering", str(env_config['ordering']),
+            "--beta", str(run_config['beta']),
+            "--phi", str(run_config['phi']),
+            "--delta", str(run_config['delta']),
+            
+            # PQ-EWA specific parameters
+            "--grid_bins", str(run_config['grid_bins']),
+            "--max_subspaces", str(run_config['max_subspaces']),
+        ]
+        
+        # Add optional parameters only if they have values
+        if run_config['num_subspaces'] is not None:
+            command.extend(["--num_subspaces", str(run_config['num_subspaces'])])
+        if run_config['codes_per_subspace'] is not None:
+            command.extend(["--codes_per_subspace", str(run_config['codes_per_subspace'])])
         
         if "num_updates_per_online_iter" in run_config:
-            command += f"--num_updates_per_online_iter {run_config['num_updates_per_online_iter']} "
+            command.extend(["--num_updates_per_online_iter", str(run_config['num_updates_per_online_iter'])])
         if "num_online_rollouts" in run_config:
-            command += f"--num_online_rollouts {run_config['num_online_rollouts']} "
+            command.extend(["--num_online_rollouts", str(run_config['num_online_rollouts'])])
         
         # Run experiment and log results
-        print(f"Running: {command}")
+        print(f"Running: {' '.join(command)}")
+        print(f"Starting experiment at {datetime.now(tz=us_eastern).strftime('%Y-%m-%d %H:%M:%S')}")
+        print("-" * 80)
         
         # Get the path of the folder created by logger.py
         now = datetime.now(tz=us_eastern).strftime("%Y.%m.%d/%H%M")
@@ -145,31 +158,31 @@ def run_experiment(run_config):
         # Run command and save output to log.txt while also showing in terminal
         log_path = os.path.join(info_folder, "log.txt")
         
-        # Simple approach: run with real-time output
-        def run_with_output(command, log_file):
+        # Use the clean approach from run_quick1_ewa.py
+        env_vars = os.environ.copy()
+        env_vars["PYTHONUNBUFFERED"] = "1"
+        
+        with open(log_path, "w") as log_file:
             process = subprocess.Popen(
                 command,
-                shell=True,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
                 bufsize=1,
-                universal_newlines=True
+                env=env_vars
             )
             
-            while True:
-                output = process.stdout.readline()
-                if output == '' and process.poll() is not None:
-                    break
-                if output:
-                    print(output.rstrip())  # Print to terminal immediately
-                    log_file.write(output)  # Write to file
-                    log_file.flush()  # Ensure immediate writing
+            last = time.time()
+            for line in process.stdout:
+                print(line, end="")
+                log_file.write(line)
+                log_file.flush()
+                if time.time() - last > 300:  # 5 minutes
+                    print(f"[{datetime.now().strftime('%H:%M:%S')}] Process still running...")
+                    last = time.time()
             
-            return process.poll()
-        
-        with open(log_path, "w") as log_file:
-            return_code = run_with_output(command, log_file)
+            process.wait()
+            return_code = process.returncode
         
         # Check if process failed
         if return_code != 0:
