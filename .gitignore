@@ -3,6 +3,8 @@ exp_results/
 data/
 figures_comparison/
 figures_ewa/
+# Keep ODT baseline figures in git (small)
+!figures_odt/
 normalized_returns/
 ewa_grid_cache/
 Cursor chat history/

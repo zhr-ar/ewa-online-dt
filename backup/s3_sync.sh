@@ -59,6 +59,12 @@ sync_dir "$REPO_ROOT/backup"        "${S3_PREFIX}/env"
 sync_dir "$HOME/.d4rl"              "${S3_PREFIX}/d4rl"
 sync_dir "$HOME/.mujoco"            "${S3_PREFIX}/mujoco"
 
+# Legacy online-dt-main experiments (sibling project)
+ODT_ROOT="$(dirname "$REPO_ROOT")/online-dt-main"
+sync_dir "$ODT_ROOT/exp"            "${S3_PREFIX}/online-dt-main/exp"
+sync_dir "$ODT_ROOT/exp_results"    "${S3_PREFIX}/online-dt-main/exp_results"
+sync_dir "$ODT_ROOT/figures_odt"    "${S3_PREFIX}/online-dt-main/figures_odt"
+
 echo ""
 echo "=== Done ==="
 echo "Restore later with:"
