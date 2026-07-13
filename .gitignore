@@ -15,3 +15,6 @@ __pycache__/
 *.ckpt
 .DS_Store
 =1.21.0
+github_token*
+*.token
+.env
