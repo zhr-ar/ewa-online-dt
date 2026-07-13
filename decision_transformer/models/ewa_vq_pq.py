@@ -349,7 +349,7 @@ class EWAVQProductQuantization:
                 code_idx = code_indices_list[subspace_idx][t]
                 self.subspace_attractions[subspace_idx][code_idx] += self.delta * r_t
                 self.subspace_usage[subspace_idx][code_idx] += 1
-                
+
                 # print(f"      Step {t} out of {k}, Subspace {subspace_idx}:")
                 # print(f"        Code index: {code_idx.item()}")
                 # print(f"        Reward: {r_t.item():.4f}")
@@ -406,8 +406,9 @@ class EWAVQProductQuantization:
         self.attraction_history.append(iteration_data)
         self.code_usage_history.append(total_code_usage)
         self.reward_history.append(avg_reward)
-        
-        self.step += 1    
+
+        self.step += 1
+
         # print(f"\nD_codebook: {D_codebook}")
         # print(f"\nD_trajectory: {D_trajectory}")
         
@@ -533,5 +534,5 @@ class EWAVQProductQuantization:
             action_indices = torch.tensor([2], device=self.device)
         else:
             action_indices = torch.arange(2, min(self.tuple_seq_length, 3 * num_action_tokens), step=3, device=self.device)
-        
+
         return batch_size, num_action_tokens, self.tuple_seq_length, action_indices

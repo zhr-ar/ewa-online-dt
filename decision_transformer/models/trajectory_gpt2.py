@@ -433,10 +433,10 @@ class Attention(nn.Module):
             # Apply attraction to attention weights at action token indices
             for a_ind in action_indices:
                 a_val = attr[:, :, a_ind, :]
-                a_val_expanded = a_val.expand(-1, -1, w.size(2))            
+                a_val_expanded = a_val.expand(-1, -1, w.size(2))
                 # print(f"   Applying attraction at action index {a_ind}:")
                 # print(f"     Attraction value: {a_val.mean().item():.4f}")
-                # print(f"     Beta * attraction: {beta * a_val.mean().item():.4f}")            
+                # print(f"     Beta * attraction: {beta * a_val.mean().item():.4f}")
                 w[:, :, :, a_ind] += beta * a_val_expanded
                 
                 
